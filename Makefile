@@ -13,7 +13,7 @@
 #
 # ============================================================================
 
-.PHONY: help ui install check voices demo-voice prepare test convert podcast examples clean clean-all
+.PHONY: help ui install check voices demo-voice demo-voices-podcast demo-voices-emotion prepare test convert podcast audiobook examples clean clean-all
 
 # Configuration
 SHELL := /bin/bash
@@ -52,14 +52,17 @@ help: ## Show this help
 	@echo "    make ui              Launch interactive terminal UI"
 	@echo ""
 	@echo "$(COLOR_BOLD)  Voice Management:$(COLOR_RESET)"
-	@echo "    make voices          List all voice profiles"
-	@echo "    make demo-voice      Download public domain demo voice"
-	@echo "    make prepare         Prepare a new voice profile"
-	@echo "    make test            Test a voice profile"
+	@echo "    make voices              List all voice profiles"
+	@echo "    make demo-voice          Create synthetic demo voice"
+	@echo "    make demo-voices-podcast Create two voices for podcast demo"
+	@echo "    make demo-voices-emotion Create three emotional variants"
+	@echo "    make prepare             Prepare a new voice profile"
+	@echo "    make test                Test a voice profile"
 	@echo ""
 	@echo "$(COLOR_BOLD)  Audio Generation:$(COLOR_RESET)"
 	@echo "    make convert         Convert markdown to audio"
 	@echo "    make podcast         Generate multi-speaker podcast"
+	@echo "    make audiobook       Full audiobook pipeline (LLM + emotions)"
 	@echo "    make examples        Show example commands"
 	@echo ""
 	@echo "$(COLOR_BOLD)  Maintenance:$(COLOR_RESET)"
@@ -151,10 +154,47 @@ voices: ## List all voice profiles
 		done; \
 	fi
 
-demo-voice: ## Download public domain demo voice (LibriVox)
-	@echo "$(COLOR_BOLD)Demo Voice Setup$(COLOR_RESET)"
-	@echo "────────────────"
-	@./$(EXAMPLES)/demo_voices/setup_demo_voice.sh
+demo-voice: check-venv ## Create synthetic demo voice (VoiceDesign)
+	@echo "$(COLOR_BOLD)Synthetic Demo Voice$(COLOR_RESET)"
+	@echo "────────────────────"
+	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
+		--name "synthetic_narrator" \
+		--description "A warm, clear voice with calm and engaging tone, suitable for narration"
+
+demo-voices-podcast: check-venv ## Create two voices for podcast demo (host + guest)
+	@echo "$(COLOR_BOLD)Podcast Demo Voices$(COLOR_RESET)"
+	@echo "───────────────────"
+	@echo "Creating podcast_host..."
+	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
+		--name "podcast_host" \
+		--description "A warm, professional male voice with clear diction and engaging tone, suitable for hosting podcasts"
+	@echo ""
+	@echo "Creating podcast_guest..."
+	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
+		--name "podcast_guest" \
+		--description "A friendly, conversational female voice with natural enthusiasm and warmth"
+	@echo ""
+	@echo "$(COLOR_GREEN)Podcast voices ready! See docs/PODCAST.md for usage.$(COLOR_RESET)"
+
+demo-voices-emotion: check-venv ## Create three emotional voice variants
+	@echo "$(COLOR_BOLD)Emotional Voice Variants$(COLOR_RESET)"
+	@echo "────────────────────────"
+	@echo "Creating narrator_calm..."
+	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
+		--name "narrator_calm" \
+		--description "A calm, measured voice with relaxed pace and even tone, suitable for explanations"
+	@echo ""
+	@echo "Creating narrator_excited..."
+	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
+		--name "narrator_excited" \
+		--description "An enthusiastic, energetic voice with upbeat intonation and faster pace"
+	@echo ""
+	@echo "Creating narrator_serious..."
+	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
+		--name "narrator_serious" \
+		--description "A serious, authoritative voice with gravitas and measured, deliberate delivery"
+	@echo ""
+	@echo "$(COLOR_GREEN)Emotional variants ready! See docs/EMOTION.md for usage.$(COLOR_RESET)"
 
 prepare: check-venv ## Prepare a new voice profile
 	@echo "$(COLOR_BOLD)Prepare Voice Profile$(COLOR_RESET)"
@@ -274,6 +314,43 @@ podcast: check-venv ## Generate multi-speaker podcast
 		cmd="$$cmd -o \"$(OUT)\""; \
 	fi; \
 	eval $$cmd
+
+audiobook: check-venv ## Full audiobook pipeline (LLM preprocessing + emotional voices)
+	@echo "$(COLOR_BOLD)Audiobook Generation$(COLOR_RESET)"
+	@echo "────────────────────"
+	@echo ""
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make audiobook FILE=chapter.md [OUT=audiobook/chapter.mp3]"; \
+		echo ""; \
+		echo "This runs the full pipeline:"; \
+		echo "  1. LLM preprocessing (adds pauses, fixes pronunciation)"; \
+		echo "  2. Emotional tagging (suggests tone for each segment)"; \
+		echo "  3. Voice mapping (maps emotions to voice profiles)"; \
+		echo "  4. Audio generation"; \
+		echo ""; \
+		echo "Requires:"; \
+		echo "  - DEMETERICS_API_KEY in .env"; \
+		echo "  - Emotional voice variants (run: make demo-voices-emotion)"; \
+		echo ""; \
+		echo "See docs/AUDIOBOOK.md for details."; \
+		exit 1; \
+	fi
+	@basename=$$(basename "$(FILE)" .md); \
+	speech_file="output/audio/$${basename}_speech.txt"; \
+	podcast_file="output/audio/$${basename}_podcast.txt"; \
+	out_file="$(OUT)"; \
+	if [ -z "$$out_file" ]; then out_file="output/$${basename}.mp3"; fi; \
+	mkdir -p output/audio; \
+	echo "[1/3] LLM Preprocessing..."; \
+	$(VENV_PYTHON) $(SCRIPTS)/preprocess_for_tts.py "$(FILE)" --with-instructions -o "$$speech_file"; \
+	echo ""; \
+	echo "[2/3] Mapping emotions to voices..."; \
+	$(VENV_PYTHON) $(SCRIPTS)/map_emotions_to_voices.py "$$speech_file" -o "$$podcast_file" -v; \
+	echo ""; \
+	echo "[3/3] Generating audio..."; \
+	$(VENV_PYTHON) $(SCRIPTS)/multi_speaker.py "$$podcast_file" -o "$$out_file"; \
+	echo ""; \
+	echo "$(COLOR_GREEN)Audiobook generated: $$out_file$(COLOR_RESET)"
 
 # ============================================================================
 # Examples

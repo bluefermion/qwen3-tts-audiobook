@@ -36,7 +36,7 @@ We recorded 30 seconds of actual talking:
 
 (Yes, we read something pretentious. Don't judge.)
 
-**Result:** MUCH better. The AI actually sounded like Patrick now. Well, Patrick-if-he-was-slightly-sedated, but progress!
+**Result:** MUCH better. The AI actually sounded like us now. Well, slightly-sedated-us, but progress!
 
 ## Chapter 4: "The Great Temperature Debate"
 
@@ -113,9 +113,9 @@ So we can either:
 - Sound expressive (but like a stranger)
 
 **Our solution:** Record ourselves in different moods:
-- `patrick_calm.wav` - for chill explanations
-- `patrick_excited.wav` - for "this is amazing!" moments
-- `patrick_screaming.wav` - for when the AI loses your money
+- `narrator_calm.wav` - for chill explanations
+- `narrator_excited.wav` - for "this is amazing!" moments
+- `narrator_urgent.wav` - for when the AI loses your money
 
 Then use each as a separate voice profile. Hack? Yes. Works? Also yes.
 
@@ -197,7 +197,7 @@ PAUSE_BETWEEN_PARAGRAPHS = 400  # ms
 
 ```bash
 # Clone your voice
-python scripts/voice_factory.py clone voices/patrick.wav "Hello world" -o hello.wav
+python scripts/voice_factory.py clone voices/my_voice.wav "Hello world" -o hello.wav
 
 # Test a voice profile
 python scripts/voice_factory.py test voices/my_voice.wav "Testing one two three"

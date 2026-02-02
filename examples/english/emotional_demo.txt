@@ -1,0 +1,39 @@
+# Emotional Voice Variants Demo
+# Uses: narrator_calm, narrator_excited, narrator_serious
+# Setup: make demo-voices-emotion
+
+[narrator_calm] Welcome to this demonstration of emotional voice synthesis.
+We'll explore how the same identity can convey different moods and tones.
+
+[pause 0.5s]
+
+[narrator_excited] And let me tell you, the results are incredible!
+The technology has advanced so much that you can really feel the difference!
+
+[pause 0.3s]
+
+[narrator_serious] But we must also consider the implications carefully.
+With great power comes great responsibility. This technology requires
+thoughtful and ethical use.
+
+[pause 0.3s]
+
+[narrator_calm] Let's walk through how this works. The system uses different
+voice profiles, each trained on audio recorded in a specific emotional state.
+
+[narrator_excited] The exciting part is that you can switch between them
+seamlessly! Listen to how natural the transitions feel!
+
+[pause 0.3s]
+
+[narrator_serious] However, misuse of this technology could spread
+misinformation or violate someone's identity rights. Always obtain
+proper consent and be transparent about synthetic audio.
+
+[pause 0.5s]
+
+[narrator_calm] In summary, emotional voice variants add richness and
+engagement to your audio content. Use them wisely, and your listeners
+will thank you.
+
+[pause 1s]

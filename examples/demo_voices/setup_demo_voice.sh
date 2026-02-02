@@ -71,7 +71,7 @@ print(f"Generating voice from description: {VOICE_DESC[:50]}...")
 wavs, sr = model.generate_voice_design(
     text=SAMPLE_TEXT,
     language="English",
-    voice_description=VOICE_DESC,
+    instruct=VOICE_DESC,
 )
 
 output_path = VOICES_DIR / f"{DEMO_NAME}.wav"

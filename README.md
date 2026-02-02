@@ -1,4 +1,7 @@
-# my-qwen3-tts
+# qwen3-tts-audiobook
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 
 A voice cloning toolkit using Qwen3-TTS for converting text to speech with your own voice.
 
@@ -15,8 +18,8 @@ A voice cloning toolkit using Qwen3-TTS for converting text to speech with your 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/my-qwen3-tts.git
-cd my-qwen3-tts
+git clone https://github.com/bluefermion/qwen3-tts-audiobook.git
+cd qwen3-tts-audiobook
 
 # Create virtual environment
 python3 -m venv venv_qwen3

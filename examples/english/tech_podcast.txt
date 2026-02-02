@@ -1,0 +1,45 @@
+# Tech Talk Podcast - Episode 1: Voice Cloning
+# Uses: podcast_host, podcast_guest
+# Setup: make demo-voices-podcast
+
+[podcast_host] Welcome to Tech Talk, the podcast where we explore
+the cutting edge of technology. I'm your host, and today we're
+diving into the fascinating world of voice cloning.
+
+[pause 0.5s]
+
+[podcast_guest] Thanks for having me. It's an exciting time to be
+working in this field.
+
+[podcast_host] So tell us, what makes the latest generation of
+text-to-speech so different from what came before?
+
+[podcast_guest] The key breakthrough is zero-shot voice cloning.
+With just a few seconds of audio, we can now capture someone's
+unique vocal characteristics and generate entirely new speech.
+
+[pause 0.3s]
+
+[podcast_host] That sounds both amazing and a little concerning.
+
+[podcast_guest] Exactly. The technology is powerful, which is why
+we need to be thoughtful about consent and attribution.
+
+[podcast_host] What are some legitimate use cases?
+
+[podcast_guest] Audiobook narration is huge. Content creators can
+maintain consistency across hours of content. Accessibility tools
+for people who've lost their voice. Localization of media.
+
+[pause 0.3s]
+
+[podcast_host] And the ethical considerations?
+
+[podcast_guest] Always get consent before cloning someone's voice.
+Be transparent about synthetic content. And never use it to deceive.
+
+[podcast_host] Great advice. Thanks for joining us on Tech Talk!
+
+[podcast_guest] Thanks for having me. Until next time!
+
+[pause 1s]
