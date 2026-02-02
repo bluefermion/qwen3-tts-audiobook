@@ -42,9 +42,11 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-# Resolve paths
+# Resolve paths and add to sys.path for imports
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 
 @dataclass
@@ -280,7 +282,7 @@ def validate_audio(
     Returns:
         ValidationResult with all issues found
     """
-    from scripts.transcribe import transcribe_audio
+    from transcribe import transcribe_audio
 
     # Transcribe
     result = transcribe_audio(audio_file, model_name, language, timestamps=False)

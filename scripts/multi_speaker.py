@@ -4,6 +4,7 @@ multi_speaker.py - Multi-speaker podcast/dialogue generation
 
 Convert multi-speaker scripts to audio using different voice profiles.
 Each speaker can have their own cloned voice with optional emotional variants.
+Includes validation with automatic retry for quality issues.
 
 Script Format:
     [speaker_name] Text to speak
@@ -26,6 +27,9 @@ Example Script:
 Usage:
     # Generate from script file
     python scripts/multi_speaker.py script.txt -o podcast.mp3
+
+    # With validation and retry (recommended)
+    python scripts/multi_speaker.py script.txt --validate -o podcast.mp3
 
     # Generate from inline text
     python scripts/multi_speaker.py --inline "[host] Hello [guest] Hi there" -o output.mp3
@@ -54,6 +58,9 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 VOICES_DIR = PROJECT_ROOT / "voices"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 VENV_PYTHON = PROJECT_ROOT / "venv_qwen3" / "bin" / "python"
+
+# Validation settings
+MAX_RETRIES = 3
 
 
 @dataclass
@@ -251,6 +258,113 @@ sf.write("{output_path}", wavs[0], sr)
     return result.returncode == 0
 
 
+def validate_segment(
+    audio_path: Path,
+    expected_text: str,
+    whisper_model: str = "base",
+) -> tuple:
+    """
+    Validate audio segment for quality issues.
+
+    Returns:
+        Tuple of (passed: bool, issues: list, transcription: str)
+    """
+    try:
+        import whisper
+    except ImportError:
+        return True, [], ""
+
+    try:
+        model = whisper.load_model(whisper_model)
+        result = model.transcribe(str(audio_path), verbose=False)
+        transcription = result["text"].strip()
+
+        issues = []
+
+        # Check for stuttering
+        import re
+        word_repeat = re.findall(r'\b(\w+)(?:\s+\1){1,}\b', transcription, re.IGNORECASE)
+        for word in word_repeat:
+            issues.append(f"Stuttering: '{word}'")
+
+        syllable_stutters = re.findall(r'\b([a-zA-Z]{1,3})(?:-\1){1,}', transcription)
+        for stutter in syllable_stutters:
+            issues.append(f"Syllable stutter: '{stutter}'")
+
+        # Check similarity
+        def normalize(t):
+            t = t.lower()
+            t = re.sub(r'[^\w\s]', '', t)
+            return ' '.join(t.split())
+
+        expected_norm = normalize(expected_text)
+        actual_norm = normalize(transcription)
+
+        if expected_norm and actual_norm:
+            words1 = set(expected_norm.split())
+            words2 = set(actual_norm.split())
+            if words1 and words2:
+                similarity = len(words1 & words2) / len(words1 | words2)
+                if similarity < 0.5:
+                    issues.append(f"Low similarity ({similarity:.0%})")
+
+        return len(issues) == 0, issues, transcription
+
+    except Exception as e:
+        return True, [f"Validation error: {e}"], ""
+
+
+def generate_segment_with_validation(
+    segment: Segment,
+    output_path: Path,
+    language: str = "English",
+    validate: bool = True,
+    max_retries: int = MAX_RETRIES,
+    whisper_model: str = "base",
+) -> tuple:
+    """
+    Generate segment audio with validation and retry.
+
+    Returns:
+        Tuple of (success: bool, attempts: int, issues: list)
+    """
+    # Pause segments don't need validation
+    if not segment.speaker:
+        from pydub import AudioSegment
+        silence = AudioSegment.silent(duration=segment.pause_after)
+        silence.export(str(output_path), format="wav")
+        return True, 1, []
+
+    attempts = 0
+    last_issues = []
+
+    while attempts < max_retries:
+        attempts += 1
+
+        success = generate_segment_audio(segment, output_path, language)
+        if not success:
+            last_issues = ["Generation failed"]
+            continue
+
+        if not validate:
+            return True, attempts, []
+
+        passed, issues, _ = validate_segment(
+            output_path, segment.text, whisper_model
+        )
+
+        if passed:
+            return True, attempts, []
+
+        last_issues = issues
+
+        if attempts < max_retries:
+            print(f"      ⚠ Validation failed (attempt {attempts}/{max_retries}): {', '.join(issues[:2])}")
+            print(f"      ↻ Retrying...")
+
+    return False, attempts, last_issues
+
+
 def combine_segments(
     audio_files: List[Path],
     pause_durations: List[int],
@@ -287,9 +401,23 @@ def generate_podcast(
     output_file: str,
     language: str = "English",
     keep_chunks: bool = False,
+    validate: bool = False,
+    max_retries: int = MAX_RETRIES,
+    whisper_model: str = "base",
+    strict: bool = False,
 ) -> dict:
     """
     Generate multi-speaker podcast from script.
+
+    Args:
+        script_content: Script text
+        output_file: Output audio path
+        language: Language for TTS
+        keep_chunks: Keep temp files
+        validate: Enable validation with retry
+        max_retries: Max retry attempts
+        whisper_model: Whisper model for validation
+        strict: Fail if any segment fails validation
 
     Returns stats dictionary.
     """
@@ -314,8 +442,12 @@ def generate_podcast(
     audio_files = []
     pause_durations = []
     failed = 0
+    total_retries = 0
+    validation_failures = []
 
     print(f"\nGenerating audio for {len(segments)} segments...")
+    if validate:
+        print(f"Validation enabled (whisper: {whisper_model}, max retries: {max_retries})")
     start_time = time.time()
 
     for i, segment in enumerate(segments):
@@ -326,12 +458,37 @@ def generate_podcast(
         if segment.speaker:
             print(f"  [{segment.speaker}] {segment.text[:40]}...")
 
-        success = generate_segment_audio(segment, chunk_file, language)
-        if not success:
-            # Create silence placeholder
-            from pydub import AudioSegment
-            AudioSegment.silent(duration=500).export(str(chunk_file), format="wav")
-            failed += 1
+        if validate:
+            success, attempts, issues = generate_segment_with_validation(
+                segment, chunk_file, language,
+                validate=True,
+                max_retries=max_retries,
+                whisper_model=whisper_model,
+            )
+            total_retries += (attempts - 1)
+
+            if not success:
+                validation_failures.append({
+                    "segment": i + 1,
+                    "speaker": segment.speaker,
+                    "text": segment.text[:50],
+                    "issues": issues,
+                })
+                if strict:
+                    print(f"    ✗ Failed after {attempts} attempts")
+                    failed += 1
+                    from pydub import AudioSegment
+                    AudioSegment.silent(duration=500).export(str(chunk_file), format="wav")
+                else:
+                    print(f"    ⚠ Using best effort after {attempts} attempts")
+            elif attempts > 1:
+                print(f"    ✓ Passed on attempt {attempts}")
+        else:
+            success = generate_segment_audio(segment, chunk_file, language)
+            if not success:
+                from pydub import AudioSegment
+                AudioSegment.silent(duration=500).export(str(chunk_file), format="wav")
+                failed += 1
 
     elapsed = time.time() - start_time
 
@@ -357,7 +514,18 @@ def generate_podcast(
     print(f"Duration: {duration/60:.1f} minutes")
     print(f"Size:     {file_size:.1f} MB")
     print(f"Segments: {len(segments)} ({failed} failed)")
+    if validate:
+        print(f"Retries:  {total_retries}")
     print(f"Time:     {elapsed/60:.1f} minutes")
+
+    if validation_failures:
+        print()
+        print("Validation Issues:")
+        for vf in validation_failures[:5]:
+            print(f"  [{vf['speaker']}] {', '.join(vf['issues'][:2])}")
+        if len(validation_failures) > 5:
+            print(f"  ... and {len(validation_failures) - 5} more")
+
     print("=" * 60)
 
     return {
@@ -365,6 +533,8 @@ def generate_podcast(
         "duration_seconds": duration,
         "segments": len(segments),
         "failed": failed,
+        "retries": total_retries if validate else 0,
+        "validation_failures": len(validation_failures) if validate else 0,
         "elapsed": elapsed,
     }
 
@@ -393,6 +563,15 @@ Example:
     parser.add_argument("--list-voices", action="store_true", help="List required voices")
     parser.add_argument("--language", default="English", help="Language")
     parser.add_argument("--keep-chunks", action="store_true", help="Keep temp files")
+    parser.add_argument("--validate", "-V", action="store_true",
+                        help="Validate audio quality and retry on stuttering (requires whisper)")
+    parser.add_argument("--max-retries", type=int, default=MAX_RETRIES,
+                        help=f"Max retry attempts for failed validation (default: {MAX_RETRIES})")
+    parser.add_argument("--whisper-model", default="base",
+                        choices=["tiny", "base", "small", "medium"],
+                        help="Whisper model for validation (default: base)")
+    parser.add_argument("--strict", action="store_true",
+                        help="Fail if any segment fails validation after all retries")
 
     args = parser.parse_args()
 
@@ -429,12 +608,20 @@ Example:
         else:
             args.output = "output/podcast.mp3"
 
-    generate_podcast(
+    result = generate_podcast(
         content,
         args.output,
         args.language,
         args.keep_chunks,
+        validate=args.validate,
+        max_retries=args.max_retries,
+        whisper_model=args.whisper_model,
+        strict=args.strict,
     )
+
+    # Exit with error if strict mode and failures
+    if args.strict and result.get("failed", 0) > 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
