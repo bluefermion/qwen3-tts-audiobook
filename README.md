@@ -8,9 +8,11 @@ Voice cloning toolkit for audiobooks and podcasts using Qwen3-TTS. Clone your vo
 ## Features
 
 - **Voice Cloning** - Clone any voice from a 20-30 second audio sample
+- **Emotional Variants** - Create calm, excited, serious, and warm voice profiles
 - **Markdown to Audio** - Convert markdown documents to audiobooks
 - **Multi-Speaker Podcasts** - Generate dialogues with multiple voice profiles
-- **Voice Factory** - Simple tools to prepare and manage voice profiles
+- **Synthetic Voices** - Generate 100% AI voices (no recording needed)
+- **Terminal UI** - Interactive interface for voice management
 
 ## Quick Start
 
@@ -21,16 +23,30 @@ Voice cloning toolkit for audiobooks and podcasts using Qwen3-TTS. Clone your vo
 git clone https://github.com/bluefermion/qwen3-tts-audiobook.git
 cd qwen3-tts-audiobook
 
-# Create virtual environment
+# Install with make (recommended)
+make install
+
+# Or manually:
 python3 -m venv venv_qwen3
 source venv_qwen3/bin/activate
-
-# Install dependencies
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install qwen-tts soundfile pydub
+pip install -r requirements.txt
 ```
 
-### 2. Create a Voice Profile
+### 2. Try It (No Recording Needed)
+
+```bash
+# Create a synthetic demo voice
+make demo-voice
+
+# Test it
+make test VOICE=synthetic_narrator TEXT="Hello, this is a test of the voice cloning toolkit."
+
+# Convert sample markdown to audio
+make convert FILE=examples/english/sample.md VOICE=synthetic_narrator
+```
+
+### 3. Create Your Own Voice Profile
 
 Record yourself speaking for 20-30 seconds, then:
 
@@ -44,7 +60,7 @@ python scripts/voice_factory.py test voices/my_voice.wav "Hello, this is a test!
 # Listen to output/test_my_voice.wav
 ```
 
-### 3. Generate Audio
+### 4. Generate Audio
 
 ```bash
 # Convert markdown to audio
