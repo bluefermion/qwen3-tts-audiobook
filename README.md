@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 
-A voice cloning toolkit using Qwen3-TTS for converting text to speech with your own voice.
+Voice cloning toolkit for audiobooks and podcasts using Qwen3-TTS. Clone your voice in multiple emotional tones, convert markdown to audio, and generate multi-speaker content.
 
 ## Features
 
