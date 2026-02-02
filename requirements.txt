@@ -10,6 +10,9 @@ qwen-tts>=0.1.0
 soundfile>=0.12.0
 pydub>=0.25.0
 
+# Audio transcription & validation
+openai-whisper>=20231117
+
 # Progress & UI
 tqdm>=4.65.0
 textual>=0.47.0

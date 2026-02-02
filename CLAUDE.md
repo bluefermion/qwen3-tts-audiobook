@@ -16,7 +16,9 @@ qwen3-tts-audiobook/
 │   ├── multi_speaker.py     # Multi-speaker podcast generation
 │   ├── create_synthetic_voice.py    # VoiceDesign synthetic voice creation
 │   ├── preprocess_for_tts.py        # LLM text preprocessing
-│   └── map_emotions_to_voices.py    # Emotion → voice profile mapping
+│   ├── map_emotions_to_voices.py    # Emotion → voice profile mapping
+│   ├── transcribe.py        # Whisper audio-to-text transcription
+│   └── validate_audio.py    # Quality validation (stuttering detection)
 ├── tts_ui.py                # Terminal UI (Textual framework)
 ├── Makefile                 # Build automation (primary interface)
 ├── voices/                  # Voice profiles (.wav + optional .txt transcriptions)
@@ -67,8 +69,34 @@ make test VOICE=name  # Test a voice profile
 make convert FILE=x   # Convert markdown to audio
 make podcast FILE=x   # Generate multi-speaker podcast
 make audiobook FILE=x # Full pipeline (LLM + emotions + TTS)
+make transcribe FILE=x # Transcribe audio to text (Whisper)
+make validate FILE=x  # Validate audio quality (detect stuttering)
 make ui               # Launch terminal UI
 ```
+
+## Quality Validation Workflow
+
+For detecting stuttering or quality issues in generated audio:
+
+```bash
+# 1. Generate audio
+make convert FILE=document.md VOICE=my_voice
+
+# 2. Transcribe to check what was actually said
+make transcribe FILE=output/document.mp3
+
+# 3. Validate for stuttering/repetition
+make validate FILE=output/document.mp3
+
+# 4. Validate against expected text
+make validate FILE=output/chunk.wav EXPECTED="This is what it should say"
+```
+
+The validation script detects:
+- **Stuttering**: Repeated words ("the the the") or syllables ("I-I-I")
+- **Repetition**: Repeated phrases ("I want to I want to")
+- **Gibberish**: Nonsense characters or very long words
+- **Incomplete**: Sentences cut off mid-word
 
 ## Code Patterns
 
@@ -98,7 +126,8 @@ voices/
 
 ## External Dependencies
 
-- **Demeterics API**: Used by `preprocess_for_tts.py` for LLM text preprocessing. Requires `DEMETERICS_API_KEY` in `.env`.
+- **Demeterics API**: Used by `preprocess_for_tts.py` for LLM text preprocessing. Requires `DEMETERICS_API_KEY` in `.env`. See [demeterics.ai/docs/api-reference](https://demeterics.ai/docs/api-reference).
+- **OpenAI Whisper**: Used by `transcribe.py` and `validate_audio.py` for local audio transcription.
 - **ffmpeg**: Required for audio format conversion.
 - **CUDA**: GPU acceleration required (8GB+ VRAM).
 

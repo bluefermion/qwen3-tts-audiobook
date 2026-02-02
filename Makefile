@@ -13,7 +13,7 @@
 #
 # ============================================================================
 
-.PHONY: help ui install check voices demo-voice demo-voices-podcast demo-voices-emotion prepare test convert podcast audiobook examples clean clean-all
+.PHONY: help ui install check voices demo-voice demo-voices-podcast demo-voices-emotion prepare test convert podcast audiobook transcribe validate examples clean clean-all
 
 # Configuration
 SHELL := /bin/bash
@@ -63,6 +63,12 @@ help: ## Show this help
 	@echo "    make convert         Convert markdown to audio"
 	@echo "    make podcast         Generate multi-speaker podcast"
 	@echo "    make audiobook       Full audiobook pipeline (LLM + emotions)"
+	@echo ""
+	@echo "$(COLOR_BOLD)  Quality Validation:$(COLOR_RESET)"
+	@echo "    make transcribe      Transcribe audio to text (Whisper)"
+	@echo "    make validate        Validate audio for stuttering/quality"
+	@echo ""
+	@echo "$(COLOR_BOLD)  Help:$(COLOR_RESET)"
 	@echo "    make examples        Show example commands"
 	@echo ""
 	@echo "$(COLOR_BOLD)  Maintenance:$(COLOR_RESET)"
@@ -351,6 +357,68 @@ audiobook: check-venv ## Full audiobook pipeline (LLM preprocessing + emotional 
 	$(VENV_PYTHON) $(SCRIPTS)/multi_speaker.py "$$podcast_file" -o "$$out_file"; \
 	echo ""; \
 	echo "$(COLOR_GREEN)Audiobook generated: $$out_file$(COLOR_RESET)"
+
+# ============================================================================
+# Quality Validation
+# ============================================================================
+
+transcribe: check-venv ## Transcribe audio to text using Whisper
+	@echo "$(COLOR_BOLD)Transcribe Audio$(COLOR_RESET)"
+	@echo "────────────────"
+	@echo ""
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make transcribe FILE=audio.wav [MODEL=base] [OUT=transcription.txt]"; \
+		echo ""; \
+		echo "Arguments:"; \
+		echo "  FILE   Audio file to transcribe (required)"; \
+		echo "  MODEL  Whisper model: tiny, base, small, medium, large (default: base)"; \
+		echo "  OUT    Output file (default: stdout)"; \
+		echo ""; \
+		echo "Example:"; \
+		echo "  make transcribe FILE=output/podcast.mp3"; \
+		echo "  make transcribe FILE=output/chunk.wav MODEL=medium OUT=transcript.txt"; \
+		exit 1; \
+	fi
+	@model="$(MODEL)"; \
+	if [ -z "$$model" ]; then model="base"; fi; \
+	cmd="$(VENV_PYTHON) $(SCRIPTS)/transcribe.py \"$(FILE)\" --model $$model"; \
+	if [ -n "$(OUT)" ]; then \
+		cmd="$$cmd -o \"$(OUT)\""; \
+	fi; \
+	eval $$cmd
+
+validate: check-venv ## Validate audio quality (detect stuttering, artifacts)
+	@echo "$(COLOR_BOLD)Validate Audio$(COLOR_RESET)"
+	@echo "──────────────"
+	@echo ""
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make validate FILE=audio.wav [EXPECTED=\"text\"] [MODEL=base]"; \
+		echo ""; \
+		echo "Arguments:"; \
+		echo "  FILE      Audio file or directory to validate (required)"; \
+		echo "  EXPECTED  Expected transcription (optional)"; \
+		echo "  MODEL     Whisper model: tiny, base, small, medium (default: base)"; \
+		echo ""; \
+		echo "Detects:"; \
+		echo "  - Stuttering (repeated words/syllables)"; \
+		echo "  - Word/phrase repetition"; \
+		echo "  - Gibberish or nonsense"; \
+		echo "  - Incomplete sentences"; \
+		echo ""; \
+		echo "Example:"; \
+		echo "  make validate FILE=output/chunk_001.wav"; \
+		echo "  make validate FILE=output/ (validates all files)"; \
+		exit 1; \
+	fi
+	@model="$(MODEL)"; \
+	if [ -z "$$model" ]; then model="base"; fi; \
+	if [ -d "$(FILE)" ]; then \
+		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --all --model $$model; \
+	elif [ -n "$(EXPECTED)" ]; then \
+		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --model $$model --expected "$(EXPECTED)"; \
+	else \
+		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --model $$model; \
+	fi
 
 # ============================================================================
 # Examples
