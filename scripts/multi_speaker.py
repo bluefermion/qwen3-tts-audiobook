@@ -13,22 +13,22 @@ Script Format:
     [pause 1s]  # Standalone pause
 
 Example Script:
-    [patrick_excited] Welcome to the Blue Fermion Blueprint Podcast!
+    [host_excited] Welcome to the Tech Talk Podcast!
 
     [pause 1s]
 
-    [patrick_serious] Today we're discussing a critical topic.
+    [host_serious] Today we're discussing a critical topic.
 
-    [guest_warm] Thank you for having me, Patrick.
+    [guest_warm] Thank you for having me.
 
-    [patrick_screaming] WHERE DID MY AI MONEY GO?!?
+    [host_urgent] WHERE DID MY AI MONEY GO?!?
 
 Usage:
     # Generate from script file
     python scripts/multi_speaker.py script.txt -o podcast.mp3
 
     # Generate from inline text
-    python scripts/multi_speaker.py --inline "[patrick] Hello [guest] Hi there" -o output.mp3
+    python scripts/multi_speaker.py --inline "[host] Hello [guest] Hi there" -o output.mp3
 
     # List required voice profiles for a script
     python scripts/multi_speaker.py script.txt --list-voices
@@ -381,7 +381,7 @@ Script Format:
   # Comment line
 
 Example:
-  [patrick_excited] Welcome to the podcast!
+  [host_excited] Welcome to the podcast!
   [pause 0.5s]
   [guest] Thanks for having me.
         """

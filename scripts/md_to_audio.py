@@ -10,7 +10,7 @@ Usage:
     python scripts/md_to_audio.py document.md -o output.mp3
 
     # With specific voice profile
-    python scripts/md_to_audio.py document.md --voice patrick_calm -o output.mp3
+    python scripts/md_to_audio.py document.md --voice my_voice -o output.mp3
 
     # With LLM preprocessing (requires DEMETERICS_API_KEY in .env)
     python scripts/md_to_audio.py document.md --preprocess -o output.mp3
@@ -36,7 +36,7 @@ OUTPUT_DIR = PROJECT_ROOT / "output"
 VENV_PYTHON = PROJECT_ROOT / "venv_qwen3" / "bin" / "python"
 
 # Default configuration
-DEFAULT_VOICE = "patrick_30s_mono24k"
+DEFAULT_VOICE = "synthetic_narrator"
 MAX_CHUNK_CHARS = 4000
 LANGUAGE = "English"
 

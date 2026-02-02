@@ -78,17 +78,17 @@ For expressive output, record multiple variants of your voice:
 
 ```
 voices/
-├── patrick_calm.wav       # Relaxed, explanatory tone
-├── patrick_excited.wav    # Enthusiastic, energetic
-├── patrick_serious.wav    # Measured, thoughtful
-└── patrick_warm.wav       # Friendly, conversational
+├── narrator_calm.wav       # Relaxed, explanatory tone
+├── narrator_excited.wav    # Enthusiastic, energetic
+├── narrator_serious.wav    # Measured, thoughtful
+└── narrator_warm.wav       # Friendly, conversational
 ```
 
 Then use them in multi-speaker scripts:
 ```
-[patrick_excited] Welcome to the show!
-[patrick_serious] Now let's discuss the serious implications.
-[patrick_calm] Here's how this works in practice...
+[narrator_excited] Welcome to the show!
+[narrator_serious] Now let's discuss the serious implications.
+[narrator_calm] Here's how this works in practice...
 ```
 
 ## Privacy Note

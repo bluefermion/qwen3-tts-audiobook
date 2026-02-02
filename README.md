@@ -203,6 +203,27 @@ This toolkit uses Qwen3-TTS models:
 - ~8GB VRAM minimum
 - ffmpeg (for audio conversion)
 
+## LLM Preprocessing (Optional)
+
+For advanced audiobook generation, the toolkit can use an LLM to preprocess text:
+- Expand abbreviations (AI → A.I.)
+- Add natural pause markers
+- Suggest emotional tone for each section
+
+This requires an API key from [Demeterics](https://demeterics.ai):
+
+```bash
+# Add to .env file
+DEMETERICS_API_KEY=your_key_here
+```
+
+Then use the audiobook pipeline:
+```bash
+make audiobook FILE=document.md
+```
+
+See [Demeterics API Reference](https://demeterics.ai/docs/api-reference) for details.
+
 ## Troubleshooting
 
 ### "Temperature too high"

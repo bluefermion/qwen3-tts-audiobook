@@ -7,27 +7,27 @@ your raw recordings and produces ready-to-use voice profiles.
 
 Usage:
     # Prepare a single voice (convert to proper format)
-    python scripts/voice_factory.py prepare recording.mp3 --name patrick_excited
+    python scripts/voice_factory.py prepare recording.mp3 --name my_voice
 
     # Test a voice profile
-    python scripts/voice_factory.py test voices/patrick_excited.wav "This is exciting!"
+    python scripts/voice_factory.py test voices/my_voice.wav "This is exciting!"
 
     # Clone text with a voice profile
-    python scripts/voice_factory.py clone voices/patrick.wav "Hello world" -o output.wav
+    python scripts/voice_factory.py clone voices/my_voice.wav "Hello world" -o output.wav
 
     # List all voice profiles
     python scripts/voice_factory.py list
 
     # Create voice profile with transcription (for ICL mode)
-    python scripts/voice_factory.py prepare recording.mp3 --name patrick_calm \
+    python scripts/voice_factory.py prepare recording.mp3 --name narrator_calm \
         --transcription "This is what I said in the recording..."
 
 Voice Profile Format:
     voices/
-    ├── patrick_calm.wav           # Audio file (mono, 24kHz)
-    ├── patrick_calm.txt           # Optional: transcription for ICL mode
-    ├── patrick_excited.wav
-    ├── patrick_excited.txt
+    ├── narrator_calm.wav           # Audio file (mono, 24kHz)
+    ├── narrator_calm.txt           # Optional: transcription for ICL mode
+    ├── my_voice.wav
+    ├── my_voice.txt
     └── ...
 """
 
@@ -61,7 +61,7 @@ def prepare_voice(
 
     Args:
         input_file: Path to raw recording (any format ffmpeg supports)
-        name: Profile name (e.g., "patrick_excited")
+        name: Profile name (e.g., "my_voice")
         transcription: Optional exact transcription for ICL mode
         trim_start: Seconds to trim from start
         trim_end: Seconds to trim from end (0 = no trim)
@@ -356,13 +356,13 @@ def main():
         epilog="""
 Examples:
   # Prepare a voice from recording
-  python scripts/voice_factory.py prepare ~/recording.mp3 --name patrick_excited
+  python scripts/voice_factory.py prepare ~/recording.mp3 --name my_voice
 
   # Test a voice profile
-  python scripts/voice_factory.py test voices/patrick_excited.wav "This is exciting!"
+  python scripts/voice_factory.py test voices/my_voice.wav "This is exciting!"
 
   # Clone voice to speak text
-  python scripts/voice_factory.py clone voices/patrick.wav "Hello world" -o hello.wav
+  python scripts/voice_factory.py clone voices/my_voice.wav "Hello world" -o hello.wav
 
   # List all voice profiles
   python scripts/voice_factory.py list

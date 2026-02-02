@@ -16,7 +16,7 @@ Usage:
     python scripts/preprocess_for_tts.py document.md --with-instructions -o document_speech.txt
 
     # Then generate audio
-    python scripts/md_to_audio.py document_speech.txt --voice patrick -o output.mp3
+    python scripts/md_to_audio.py document_speech.txt --voice my_voice -o output.mp3
 
 Requires:
     DEMETERICS_API_KEY in environment or .env file

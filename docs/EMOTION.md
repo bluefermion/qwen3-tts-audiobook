@@ -8,10 +8,10 @@ Instead of one flat voice, record yourself in different emotional states:
 
 ```
 voices/
-├── patrick_calm.wav       # Relaxed, explanatory
-├── patrick_excited.wav    # Enthusiastic, energetic
-├── patrick_serious.wav    # Measured, thoughtful
-└── patrick_warm.wav       # Friendly, conversational
+├── narrator_calm.wav       # Relaxed, explanatory
+├── narrator_excited.wav    # Enthusiastic, energetic
+├── narrator_serious.wav    # Measured, thoughtful
+└── narrator_warm.wav       # Friendly, conversational
 ```
 
 Then use them as different "speakers" in your script to add emotional dynamics.
@@ -109,13 +109,13 @@ The question is not whether change will come, but how we'll adapt to it."
 
 ```bash
 # Record each emotion separately (20-30 seconds each)
-make prepare FILE=~/patrick_calm.mp3 NAME=patrick_calm \
+make prepare FILE=~/narrator_calm.mp3 NAME=narrator_calm \
     TRANS="When we think about the future of technology..."
 
-make prepare FILE=~/patrick_excited.mp3 NAME=patrick_excited \
+make prepare FILE=~/narrator_excited.mp3 NAME=narrator_excited \
     TRANS="When we think about the future of technology..."
 
-make prepare FILE=~/patrick_serious.mp3 NAME=patrick_serious \
+make prepare FILE=~/narrator_serious.mp3 NAME=narrator_serious \
     TRANS="When we think about the future of technology..."
 ```
 
@@ -124,11 +124,11 @@ make prepare FILE=~/patrick_serious.mp3 NAME=patrick_serious \
 Use emotional variants as different "speakers":
 
 ```
-[patrick_calm] This is spoken in a calm, measured tone.
+[narrator_calm] This is spoken in a calm, measured tone.
 
-[patrick_excited] This is spoken with enthusiasm and energy!
+[narrator_excited] This is spoken with enthusiasm and energy!
 
-[patrick_serious] This is spoken with gravitas and authority.
+[narrator_serious] This is spoken with gravitas and authority.
 ```
 
 ## Complete Example
