@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+venv_qwen3/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+
+# Voice files (private - don't commit personal voices)
+voices/*.wav
+voices/*.mp3
+voices/*.m4a
+voices/*.txt
+!voices/.gitkeep
+!voices/README.md
+
+# Generated output
+output/
+*.wav
+*.mp3
+!examples/**/*.wav
+!examples/**/*.mp3
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models cache (large files)
+.cache/
+models/
+*.bin
+*.safetensors
+
+# Temp files
+*.tmp
+*.temp
+/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+logs/

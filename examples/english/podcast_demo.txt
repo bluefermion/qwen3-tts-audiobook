@@ -1,0 +1,35 @@
+# Multi-Speaker Podcast Demo
+# Each speaker needs a voice profile in voices/
+
+[host] Welcome to the Voice Cloning Podcast! Today we're exploring
+the fascinating world of AI-powered voice synthesis.
+
+[pause 0.5s]
+
+[guest] Thanks for having me. I've been working with these
+technologies for a while now, and the progress has been remarkable.
+
+[host] Let's start with the basics. How does voice cloning actually work?
+
+[guest] Well, the model analyzes your voice sample and extracts what
+we call a voice embedding - essentially a mathematical fingerprint
+of your unique vocal characteristics. Then when you feed it new text,
+it generates speech using those characteristics.
+
+[pause 0.3s]
+
+[host] That sounds complex, but the results are impressive.
+
+[guest] Exactly. What used to require hours of studio recording can
+now be done with just thirty seconds of audio.
+
+[host] Any tips for people getting started?
+
+[guest] Record in a quiet room, speak naturally with varied intonation,
+and don't be afraid to experiment with different reference recordings.
+
+[pause 0.5s]
+
+[host] Great advice! Thanks for joining us today.
+
+[guest] My pleasure. Happy cloning everyone!

@@ -1,0 +1,101 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: AI Code Review
+        env:
+          DEMETERICS_API_KEY: ${{ secrets.DEMETERICS_API_KEY }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          # Get diff (limit to 500 lines to fit context)
+          DIFF=$(git diff "$BASE_SHA"..."$HEAD_SHA" --no-color 2>/dev/null | head -500 || true)
+
+          # Get changed files
+          FILES_CHANGED=$(git diff "$BASE_SHA"..."$HEAD_SHA" --name-only 2>/dev/null | head -50 || true)
+
+          echo "::group::PR Info"
+          echo "Title: $PR_TITLE"
+          echo "Author: $PR_AUTHOR"
+          echo "Files: $(echo "$FILES_CHANGED" | wc -l)"
+          echo "::endgroup::"
+
+          # Build JSON payload with jq (properly escapes all inputs)
+          JSON_PAYLOAD=$(jq -n \
+            --arg model "openai/gpt-oss-20b" \
+            --arg repo "$REPO_NAME" \
+            --arg author "$PR_AUTHOR" \
+            --arg title "$PR_TITLE" \
+            --arg files "$FILES_CHANGED" \
+            --arg diff "$DIFF" \
+            '{
+              model: $model,
+              messages: [
+                {
+                  role: "system",
+                  content: ("/// APP: my-qwen3-tts\n/// FLOW: PR-Review\n/// USER: " + $author + "\n/// ENV: github-actions\n\nYou are reviewing a PR for a Python TTS (Text-to-Speech) voice cloning toolkit using Qwen3-TTS.\n\nProvide:\n1. **Summary**: What changed (1-2 sentences)\n2. **Code Quality**: Python best practices, error handling, type hints\n3. **TTS Considerations**: Audio processing, voice cloning, GPU memory usage\n4. **Suggestions**: Specific improvements\n\nBe concise. Use markdown. Focus on actionable feedback.")
+                },
+                {
+                  role: "user",
+                  content: ("Review this PR:\n\nTitle: " + $title + "\nAuthor: " + $author + "\n\nFiles:\n" + $files + "\n\nDiff:\n" + $diff)
+                }
+              ],
+              temperature: 0.3,
+              max_tokens: 1500
+            }')
+
+          # Call Demeterics API
+          echo "::group::API Call"
+          HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            https://api.demeterics.com/groq/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $DEMETERICS_API_KEY" \
+            -d "$JSON_PAYLOAD")
+
+          RESPONSE=$(cat /tmp/response.json)
+          echo "HTTP: $HTTP_CODE"
+          echo "::endgroup::"
+
+          # Parse response
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::API returned HTTP $HTTP_CODE"
+            ANALYSIS="API Error: HTTP $HTTP_CODE"
+          elif echo "$RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
+            ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // .error // "Unknown"')
+            ANALYSIS="API Error: $ERROR_MSG"
+          else
+            # Try content first, then reasoning field (some models output there)
+            ANALYSIS=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+            if [ -z "$ANALYSIS" ]; then
+              ANALYSIS=$(echo "$RESPONSE" | jq -r '.choices[0].message.reasoning // empty')
+            fi
+            if [ -z "$ANALYSIS" ]; then
+              ANALYSIS="Analysis unavailable"
+            fi
+          fi
+
+          # Post comment to PR
+          COMMENT=$(printf "## AI Code Review\n\n%s\n\n---\n*Powered by [Demeterics](https://demeterics.ai)*" "$ANALYSIS")
+          gh pr comment "$PR_NUMBER" --body "$COMMENT"
+          echo "$COMMENT" >> "$GITHUB_STEP_SUMMARY"
