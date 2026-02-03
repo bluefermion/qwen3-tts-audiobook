@@ -6,6 +6,9 @@ Convert multi-speaker scripts to audio using different voice profiles.
 Each speaker can have their own cloned voice with optional emotional variants.
 Includes validation with automatic retry for quality issues.
 
+Validation uses Qwen3-ASR for retries 1-3, then Groq Whisper for retries 4-5
+to get a "second opinion" from a different model.
+
 Script Format:
     [speaker_name] Text to speak
     [speaker_name;instruction] Text with voice instruction (CustomVoice only)
@@ -40,6 +43,9 @@ Usage:
 Voice Profiles:
     Voice profiles are WAV files in the voices/ directory.
     Create them using: python scripts/voice_factory.py prepare recording.mp3 --name speaker_name
+
+Requires:
+    pip install qwen-asr
 """
 
 import argparse
@@ -59,8 +65,8 @@ VOICES_DIR = PROJECT_ROOT / "voices"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 VENV_PYTHON = PROJECT_ROOT / "venv_qwen3" / "bin" / "python"
 
-# Validation settings
-MAX_RETRIES = 3
+# Validation settings (3 local Qwen3-ASR + 2 Groq fallback)
+MAX_RETRIES = 5
 
 
 @dataclass
@@ -261,23 +267,35 @@ sf.write("{output_path}", wavs[0], sr)
 def validate_segment(
     audio_path: Path,
     expected_text: str,
-    whisper_model: str = "base",
+    use_groq: bool = False,
 ) -> tuple:
     """
     Validate audio segment for quality issues.
+
+    Args:
+        audio_path: Path to audio file
+        expected_text: The text that should have been spoken
+        use_groq: If True, use Groq's Whisper API instead of local Qwen3-ASR
 
     Returns:
         Tuple of (passed: bool, issues: list, transcription: str)
     """
     try:
-        import whisper
-    except ImportError:
-        return True, [], ""
+        # Import transcription module
+        if str(SCRIPT_DIR) not in sys.path:
+            sys.path.insert(0, str(SCRIPT_DIR))
+        from transcribe import transcribe_audio
 
-    try:
-        model = whisper.load_model(whisper_model)
-        result = model.transcribe(str(audio_path), verbose=False)
-        transcription = result["text"].strip()
+        # Get transcription using appropriate backend
+        backend = "groq" if use_groq else "qwen"
+        try:
+            result = transcribe_audio(str(audio_path), backend=backend)
+            transcription = result["text"]
+        except Exception as e:
+            if use_groq:
+                return True, ["Groq transcription unavailable"], ""
+            else:
+                return True, [f"Transcription error: {e}"], ""
 
         issues = []
 
@@ -320,10 +338,12 @@ def generate_segment_with_validation(
     language: str = "English",
     validate: bool = True,
     max_retries: int = MAX_RETRIES,
-    whisper_model: str = "base",
 ) -> tuple:
     """
     Generate segment audio with validation and retry.
+
+    Uses Qwen3-ASR for retries 1-3, then Groq Whisper for retries 4-5
+    to get a "second opinion" from a different model.
 
     Returns:
         Tuple of (success: bool, attempts: int, issues: list)
@@ -349,17 +369,23 @@ def generate_segment_with_validation(
         if not validate:
             return True, attempts, []
 
+        # Use Groq for attempts 4+ (after 3 local Qwen3-ASR failures)
+        use_groq = attempts > 3
+
         passed, issues, _ = validate_segment(
-            output_path, segment.text, whisper_model
+            output_path, segment.text, use_groq=use_groq
         )
 
         if passed:
+            if use_groq:
+                print(f"      ✓ Passed with Groq validation on attempt {attempts}")
             return True, attempts, []
 
         last_issues = issues
 
         if attempts < max_retries:
-            print(f"      ⚠ Validation failed (attempt {attempts}/{max_retries}): {', '.join(issues[:2])}")
+            validator = "Groq" if use_groq else "Qwen3-ASR"
+            print(f"      ⚠ Validation failed ({validator}, attempt {attempts}/{max_retries}): {', '.join(issues[:2])}")
             print(f"      ↻ Retrying...")
 
     return False, attempts, last_issues
@@ -403,7 +429,6 @@ def generate_podcast(
     keep_chunks: bool = False,
     validate: bool = False,
     max_retries: int = MAX_RETRIES,
-    whisper_model: str = "base",
     strict: bool = False,
 ) -> dict:
     """
@@ -416,7 +441,6 @@ def generate_podcast(
         keep_chunks: Keep temp files
         validate: Enable validation with retry
         max_retries: Max retry attempts
-        whisper_model: Whisper model for validation
         strict: Fail if any segment fails validation
 
     Returns stats dictionary.
@@ -447,7 +471,7 @@ def generate_podcast(
 
     print(f"\nGenerating audio for {len(segments)} segments...")
     if validate:
-        print(f"Validation enabled (whisper: {whisper_model}, max retries: {max_retries})")
+        print(f"Validation enabled (Qwen3-ASR + Groq fallback, max retries: {max_retries})")
     start_time = time.time()
 
     for i, segment in enumerate(segments):
@@ -463,7 +487,6 @@ def generate_podcast(
                 segment, chunk_file, language,
                 validate=True,
                 max_retries=max_retries,
-                whisper_model=whisper_model,
             )
             total_retries += (attempts - 1)
 
@@ -564,12 +587,9 @@ Example:
     parser.add_argument("--language", default="English", help="Language")
     parser.add_argument("--keep-chunks", action="store_true", help="Keep temp files")
     parser.add_argument("--validate", "-V", action="store_true",
-                        help="Validate audio quality and retry on stuttering (requires whisper)")
+                        help="Validate audio quality and retry on stuttering (uses Qwen3-ASR, Groq fallback)")
     parser.add_argument("--max-retries", type=int, default=MAX_RETRIES,
-                        help=f"Max retry attempts for failed validation (default: {MAX_RETRIES})")
-    parser.add_argument("--whisper-model", default="base",
-                        choices=["tiny", "base", "small", "medium"],
-                        help="Whisper model for validation (default: base)")
+                        help=f"Max retry attempts for failed validation (default: {MAX_RETRIES}, 1-3 Qwen, 4-5 Groq)")
     parser.add_argument("--strict", action="store_true",
                         help="Fail if any segment fails validation after all retries")
 
@@ -615,7 +635,6 @@ Example:
         args.keep_chunks,
         validate=args.validate,
         max_retries=args.max_retries,
-        whisper_model=args.whisper_model,
         strict=args.strict,
     )
 

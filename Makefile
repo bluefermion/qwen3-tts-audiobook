@@ -65,7 +65,7 @@ help: ## Show this help
 	@echo "    make audiobook       Full audiobook pipeline (LLM + emotions)"
 	@echo ""
 	@echo "$(COLOR_BOLD)  Quality Validation:$(COLOR_RESET)"
-	@echo "    make transcribe      Transcribe audio to text (Whisper)"
+	@echo "    make transcribe      Transcribe audio to text (Qwen3-ASR)"
 	@echo "    make validate        Validate audio for stuttering/quality"
 	@echo ""
 	@echo "$(COLOR_BOLD)  Help:$(COLOR_RESET)"
@@ -92,7 +92,7 @@ install: ## Install dependencies and setup environment
 	@echo "Installing dependencies..."
 	@$(VENV_PIP) install --upgrade pip
 	@$(VENV_PIP) install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-	@$(VENV_PIP) install qwen-tts soundfile pydub tqdm textual rich
+	@$(VENV_PIP) install qwen-tts qwen-asr soundfile pydub tqdm textual rich
 	@mkdir -p $(VOICES) $(OUTPUT)
 	@echo "$(COLOR_GREEN)✓ Installation complete$(COLOR_RESET)"
 	@echo ""
@@ -188,17 +188,17 @@ demo-voices-emotion: check-venv ## Create three emotional voice variants
 	@echo "Creating narrator_calm..."
 	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
 		--name "narrator_calm" \
-		--description "A calm, measured voice with relaxed pace and even tone, suitable for explanations"
+		--description "A calm, measured male voice with relaxed pace and even tone, suitable for explanations"
 	@echo ""
 	@echo "Creating narrator_excited..."
 	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
 		--name "narrator_excited" \
-		--description "An enthusiastic, energetic voice with upbeat intonation and faster pace"
+		--description "An enthusiastic, energetic male voice with upbeat intonation and faster pace"
 	@echo ""
 	@echo "Creating narrator_serious..."
 	@$(VENV_PYTHON) $(SCRIPTS)/create_synthetic_voice.py \
 		--name "narrator_serious" \
-		--description "A serious, authoritative voice with gravitas and measured, deliberate delivery"
+		--description "A serious, authoritative male voice with gravitas and measured, deliberate delivery"
 	@echo ""
 	@echo "$(COLOR_GREEN)Emotional variants ready! See docs/EMOTION.md for usage.$(COLOR_RESET)"
 
@@ -271,8 +271,11 @@ convert: check-venv ## Convert markdown to audio
 		echo "  LANG   Language: English, French, Chinese, etc. (default: English)"; \
 		echo "  OUT    Output file path (default: output/<filename>.mp3)"; \
 		echo ""; \
+		echo "Note: Validation is enabled by default. Each segment is validated"; \
+		echo "      and retried up to 3 times if stuttering is detected."; \
+		echo ""; \
 		echo "Example:"; \
-		echo "  make convert FILE=examples/english/sample.md VOICE=patrick_calm"; \
+		echo "  make convert FILE=examples/english/sample.md VOICE=patrick_30s_mono24k"; \
 		exit 1; \
 	fi
 	@voice="$(VOICE)"; \
@@ -286,7 +289,7 @@ convert: check-venv ## Convert markdown to audio
 	fi; \
 	lang="$(LANG)"; \
 	if [ -z "$$lang" ]; then lang="English"; fi; \
-	cmd="$(VENV_PYTHON) $(SCRIPTS)/md_to_audio.py \"$(FILE)\" --voice $$voice --language $$lang"; \
+	cmd="$(VENV_PYTHON) $(SCRIPTS)/md_to_audio.py \"$(FILE)\" --voice $$voice --language $$lang --validate"; \
 	if [ -n "$(OUT)" ]; then \
 		cmd="$$cmd -o \"$(OUT)\""; \
 	fi; \
@@ -315,7 +318,7 @@ podcast: check-venv ## Generate multi-speaker podcast
 	fi
 	@lang="$(LANG)"; \
 	if [ -z "$$lang" ]; then lang="English"; fi; \
-	cmd="$(VENV_PYTHON) $(SCRIPTS)/multi_speaker.py \"$(FILE)\" --language $$lang"; \
+	cmd="$(VENV_PYTHON) $(SCRIPTS)/multi_speaker.py \"$(FILE)\" --language $$lang --validate"; \
 	if [ -n "$(OUT)" ]; then \
 		cmd="$$cmd -o \"$(OUT)\""; \
 	fi; \
@@ -362,26 +365,26 @@ audiobook: check-venv ## Full audiobook pipeline (LLM preprocessing + emotional 
 # Quality Validation
 # ============================================================================
 
-transcribe: check-venv ## Transcribe audio to text using Whisper
+transcribe: check-venv ## Transcribe audio to text using Qwen3-ASR
 	@echo "$(COLOR_BOLD)Transcribe Audio$(COLOR_RESET)"
 	@echo "────────────────"
 	@echo ""
 	@if [ -z "$(FILE)" ]; then \
-		echo "Usage: make transcribe FILE=audio.wav [MODEL=base] [OUT=transcription.txt]"; \
+		echo "Usage: make transcribe FILE=audio.wav [BACKEND=qwen] [OUT=transcription.txt]"; \
 		echo ""; \
 		echo "Arguments:"; \
-		echo "  FILE   Audio file to transcribe (required)"; \
-		echo "  MODEL  Whisper model: tiny, base, small, medium, large (default: base)"; \
-		echo "  OUT    Output file (default: stdout)"; \
+		echo "  FILE     Audio file to transcribe (required)"; \
+		echo "  BACKEND  Backend: qwen (local GPU) or groq (cloud) (default: qwen)"; \
+		echo "  OUT      Output file (default: stdout)"; \
 		echo ""; \
 		echo "Example:"; \
 		echo "  make transcribe FILE=output/podcast.mp3"; \
-		echo "  make transcribe FILE=output/chunk.wav MODEL=medium OUT=transcript.txt"; \
+		echo "  make transcribe FILE=output/chunk.wav BACKEND=groq OUT=transcript.txt"; \
 		exit 1; \
 	fi
-	@model="$(MODEL)"; \
-	if [ -z "$$model" ]; then model="base"; fi; \
-	cmd="$(VENV_PYTHON) $(SCRIPTS)/transcribe.py \"$(FILE)\" --model $$model"; \
+	@backend="$(BACKEND)"; \
+	if [ -z "$$backend" ]; then backend="qwen"; fi; \
+	cmd="$(VENV_PYTHON) $(SCRIPTS)/transcribe.py \"$(FILE)\" --backend $$backend"; \
 	if [ -n "$(OUT)" ]; then \
 		cmd="$$cmd -o \"$(OUT)\""; \
 	fi; \
@@ -392,12 +395,12 @@ validate: check-venv ## Validate audio quality (detect stuttering, artifacts)
 	@echo "──────────────"
 	@echo ""
 	@if [ -z "$(FILE)" ]; then \
-		echo "Usage: make validate FILE=audio.wav [EXPECTED=\"text\"] [MODEL=base]"; \
+		echo "Usage: make validate FILE=audio.wav [EXPECTED=\"text\"] [BACKEND=qwen]"; \
 		echo ""; \
 		echo "Arguments:"; \
 		echo "  FILE      Audio file or directory to validate (required)"; \
 		echo "  EXPECTED  Expected transcription (optional)"; \
-		echo "  MODEL     Whisper model: tiny, base, small, medium (default: base)"; \
+		echo "  BACKEND   Backend: qwen (local) or groq (cloud) (default: qwen)"; \
 		echo ""; \
 		echo "Detects:"; \
 		echo "  - Stuttering (repeated words/syllables)"; \
@@ -410,14 +413,14 @@ validate: check-venv ## Validate audio quality (detect stuttering, artifacts)
 		echo "  make validate FILE=output/ (validates all files)"; \
 		exit 1; \
 	fi
-	@model="$(MODEL)"; \
-	if [ -z "$$model" ]; then model="base"; fi; \
+	@backend="$(BACKEND)"; \
+	if [ -z "$$backend" ]; then backend="qwen"; fi; \
 	if [ -d "$(FILE)" ]; then \
-		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --all --model $$model; \
+		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --all --backend $$backend; \
 	elif [ -n "$(EXPECTED)" ]; then \
-		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --model $$model --expected "$(EXPECTED)"; \
+		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --backend $$backend --expected "$(EXPECTED)"; \
 	else \
-		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --model $$model; \
+		$(VENV_PYTHON) $(SCRIPTS)/validate_audio.py "$(FILE)" --backend $$backend; \
 	fi
 
 # ============================================================================

@@ -2,7 +2,7 @@
 """
 validate_audio.py - Validate TTS audio quality by detecting stuttering and artifacts
 
-Transcribes audio using Whisper and analyzes for quality issues:
+Transcribes audio using Qwen3-ASR and analyzes for quality issues:
 - Stuttering (repeated words/syllables)
 - Word repetition
 - Unusual gaps/pauses
@@ -25,13 +25,16 @@ Usage:
     # Just check pass/fail (for automation)
     python scripts/validate_audio.py output/chunk.wav --strict
 
+    # Use Groq backend instead of local Qwen3-ASR
+    python scripts/validate_audio.py output/chunk.wav --backend groq
+
 Exit codes:
     0 - All validations passed
     1 - Validation issues detected
     2 - Error (file not found, etc.)
 
 Requires:
-    pip install openai-whisper
+    pip install qwen-asr
 """
 
 import argparse
@@ -40,7 +43,7 @@ import re
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 # Resolve paths and add to sys.path for imports
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -267,7 +270,7 @@ def compare_with_expected(transcription: str, expected: str) -> List[ValidationI
 def validate_audio(
     audio_file: str,
     expected_text: Optional[str] = None,
-    model_name: str = "base",
+    backend: str = "qwen",
     language: Optional[str] = None,
 ) -> ValidationResult:
     """
@@ -276,8 +279,8 @@ def validate_audio(
     Args:
         audio_file: Path to audio file
         expected_text: Optional expected transcription
-        model_name: Whisper model size
-        language: Language code or None for auto-detect
+        backend: "qwen" (local) or "groq" (cloud)
+        language: Language hint or None for auto-detect
 
     Returns:
         ValidationResult with all issues found
@@ -285,7 +288,7 @@ def validate_audio(
     from transcribe import transcribe_audio
 
     # Transcribe
-    result = transcribe_audio(audio_file, model_name, language, timestamps=False)
+    result = transcribe_audio(audio_file, backend=backend, language=language, timestamps=False)
     transcription = result["text"]
     duration = result.get("duration", 0)
 
@@ -317,7 +320,7 @@ def validate_audio(
 
 def validate_directory(
     directory: str,
-    model_name: str = "base",
+    backend: str = "qwen",
     language: Optional[str] = None,
     extensions: tuple = (".wav", ".mp3"),
 ) -> List[ValidationResult]:
@@ -334,7 +337,7 @@ def validate_directory(
 
     for audio_file in audio_files:
         try:
-            result = validate_audio(str(audio_file), None, model_name, language)
+            result = validate_audio(str(audio_file), None, backend, language)
             status = "PASS" if result.passed else "FAIL"
             issue_count = len(result.issues)
             print(f"  [{status}] {audio_file.name} - {issue_count} issues")
@@ -395,6 +398,7 @@ Examples:
   python scripts/validate_audio.py output/ --all
   python scripts/validate_audio.py output/podcast.mp3 --report -o report.json
   python scripts/validate_audio.py output/chunk.wav --strict
+  python scripts/validate_audio.py output/chunk.wav --backend groq
         """
     )
 
@@ -409,14 +413,14 @@ Examples:
         help="File containing expected transcription"
     )
     parser.add_argument(
-        "--model", "-m",
-        default="base",
-        choices=["tiny", "base", "small", "medium", "large"],
-        help="Whisper model size (default: base)"
+        "--backend", "-b",
+        default="qwen",
+        choices=["qwen", "groq"],
+        help="Transcription backend (default: qwen)"
     )
     parser.add_argument(
         "--language", "-l",
-        help="Language code (e.g., 'en', 'fr')"
+        help="Language hint (e.g., 'English', 'Chinese')"
     )
     parser.add_argument(
         "--all", "-a",
@@ -452,7 +456,7 @@ Examples:
     if args.all or input_path.is_dir():
         results = validate_directory(
             str(input_path),
-            args.model,
+            args.backend,
             args.language,
         )
         all_passed = all(r.passed for r in results)
@@ -477,7 +481,7 @@ Examples:
         result = validate_audio(
             str(input_path),
             expected_text,
-            args.model,
+            args.backend,
             args.language,
         )
 

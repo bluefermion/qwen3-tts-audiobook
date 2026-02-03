@@ -12,6 +12,7 @@ Voice cloning toolkit for audiobooks and podcasts using Qwen3-TTS. Clone your vo
 - **Markdown to Audio** - Convert markdown documents to audiobooks
 - **Multi-Speaker Podcasts** - Generate dialogues with multiple voice profiles
 - **Synthetic Voices** - Generate 100% AI voices (no recording needed)
+- **Quality Validation** - Automatic stuttering detection using Qwen3-ASR
 - **Terminal UI** - Interactive interface for voice management
 
 ## Quick Start
@@ -188,13 +189,27 @@ PAUSE_BETWEEN_PARAGRAPHS = 400 # ms between paragraphs
 
 ## Models
 
-This toolkit uses Qwen3-TTS models:
+This toolkit uses Qwen3-TTS and Qwen3-ASR models:
+
+### Text-to-Speech (Qwen3-TTS)
 
 | Model | Use Case |
 |-------|----------|
 | `Qwen3-TTS-12Hz-1.7B-Base` | Clone YOUR voice (default) |
 | `Qwen3-TTS-12Hz-1.7B-CustomVoice` | Built-in voices with emotion control |
 | `Qwen3-TTS-12Hz-1.7B-VoiceDesign` | Create new voices from descriptions |
+
+### Speech-to-Text (Qwen3-ASR)
+
+| Model | Use Case |
+|-------|----------|
+| `Qwen3-ASR-1.7B` | Audio transcription & quality validation |
+| `Qwen3-ForcedAligner-0.6B` | Word-level timestamps (optional) |
+
+Qwen3-ASR is used for:
+- Transcribing audio (`make transcribe`)
+- Validating TTS output (`make validate`)
+- Detecting stuttering/repetition during generation (with `--validate` flag)
 
 ## Requirements
 
@@ -289,4 +304,5 @@ MIT License - See LICENSE file for details.
 ## Acknowledgments
 
 - [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) by Alibaba
+- [Qwen3-ASR](https://github.com/QwenLM/Qwen3-ASR) by Alibaba
 - Built with lessons learned the hard way (see [STORY.md](STORY.md))

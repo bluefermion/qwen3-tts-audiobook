@@ -82,7 +82,7 @@ For detecting stuttering or quality issues in generated audio:
 # 1. Generate audio
 make convert FILE=document.md VOICE=my_voice
 
-# 2. Transcribe to check what was actually said
+# 2. Transcribe to check what was actually said (uses Qwen3-ASR)
 make transcribe FILE=output/document.mp3
 
 # 3. Validate for stuttering/repetition
@@ -90,6 +90,9 @@ make validate FILE=output/document.mp3
 
 # 4. Validate against expected text
 make validate FILE=output/chunk.wav EXPECTED="This is what it should say"
+
+# 5. Use Groq/Demeterics as alternative backend
+make transcribe FILE=output/document.mp3 BACKEND=groq
 ```
 
 The validation script detects:
@@ -97,6 +100,14 @@ The validation script detects:
 - **Repetition**: Repeated phrases ("I want to I want to")
 - **Gibberish**: Nonsense characters or very long words
 - **Incomplete**: Sentences cut off mid-word
+
+### Validation Retry Logic
+
+When `--validate` is enabled, the system uses a two-model approach:
+- **Retries 1-3**: Qwen3-ASR (local, fast)
+- **Retries 4-5**: Groq Whisper via Demeterics API (cloud, "second opinion")
+
+This helps avoid false positives from a single model's quirks.
 
 ## Code Patterns
 
@@ -126,8 +137,8 @@ voices/
 
 ## External Dependencies
 
-- **Demeterics API**: Used by `preprocess_for_tts.py` for LLM text preprocessing. Requires `DEMETERICS_API_KEY` in `.env`. See [demeterics.ai/docs/api-reference](https://demeterics.ai/docs/api-reference).
-- **OpenAI Whisper**: Used by `transcribe.py` and `validate_audio.py` for local audio transcription.
+- **Demeterics API**: Used by `preprocess_for_tts.py` for LLM text preprocessing and Groq Whisper fallback. Requires `DEMETERICS_API_KEY` in `.env`. See [demeterics.ai/docs/api-reference](https://demeterics.ai/docs/api-reference).
+- **Qwen3-ASR**: Used by `transcribe.py` and `validate_audio.py` for local audio transcription. Same ecosystem as Qwen3-TTS.
 - **ffmpeg**: Required for audio format conversion.
 - **CUDA**: GPU acceleration required (8GB+ VRAM).
 
