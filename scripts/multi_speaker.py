@@ -58,6 +58,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+# Global model instance (loaded once, reused for all segments)
+_tts_model = None
+
 # Resolve paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -187,16 +190,46 @@ def check_voices(voices: set) -> Tuple[set, set]:
     return found, missing
 
 
+def load_model():
+    """Load Qwen3-TTS model once and cache it globally.
+
+    This avoids reloading the model for each segment, saving 10-30 seconds per segment.
+    """
+    global _tts_model
+
+    if _tts_model is not None:
+        return _tts_model
+
+    import torch
+    from qwen_tts import Qwen3TTSModel
+
+    print("Loading Qwen3-TTS model (one-time initialization)...")
+    print(f"  Device: cuda")
+    if torch.cuda.is_available():
+        print(f"  GPU: {torch.cuda.get_device_name(0)}")
+
+    _tts_model = Qwen3TTSModel.from_pretrained(
+        "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        device_map="cuda:0",
+        dtype=torch.bfloat16,
+    )
+    print("  ✓ Model loaded")
+    return _tts_model
+
+
 def generate_segment_audio(
     segment: Segment,
     output_path: Path,
     language: str = "English",
+    model=None,  # Pass model to avoid reloading
 ) -> bool:
     """
     Generate audio for a single segment.
 
     Returns True on success, False on failure.
     """
+    import soundfile as sf
+
     if not segment.speaker:
         # Pause-only segment - create silence
         from pydub import AudioSegment
@@ -209,59 +242,37 @@ def generate_segment_audio(
         print(f"Warning: Voice not found: {voice_path}")
         return False
 
-    # Check for transcription (ICL mode)
-    trans_path = voice_path.with_suffix(".txt")
-    use_icl = trans_path.exists()
+    try:
+        # Use passed model or load/get cached model
+        if model is None:
+            model = load_model()
 
-    # Build generation script
-    script = f'''
-import torch
-import soundfile as sf
-from qwen_tts import Qwen3TTSModel
+        # Check for transcription (ICL mode) - use x_vector_only by default for stability
+        trans_path = voice_path.with_suffix(".txt")
+        use_icl = False  # Default to x_vector_only for multi-speaker (more stable)
 
-model = Qwen3TTSModel.from_pretrained(
-    "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-    device_map="cuda:0",
-    dtype=torch.bfloat16,
-)
+        if use_icl and trans_path.exists():
+            trans_text = trans_path.read_text(encoding="utf-8").strip()
+            wavs, sr = model.generate_voice_clone(
+                text=segment.text,
+                language=language,
+                ref_audio=str(voice_path),
+                ref_text=trans_text,
+            )
+        else:
+            wavs, sr = model.generate_voice_clone(
+                text=segment.text,
+                language=language,
+                ref_audio=str(voice_path),
+                x_vector_only_mode=True,
+            )
 
-ref_audio = "{voice_path}"
-text = """{segment.text}"""
-'''
+        sf.write(str(output_path), wavs[0], sr)
+        return True
 
-    if use_icl:
-        trans_text = trans_path.read_text(encoding="utf-8").strip()
-        script += f'''
-ref_text = """{trans_text}"""
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="{language}",
-    ref_audio=ref_audio,
-    ref_text=ref_text,
-)
-'''
-    else:
-        script += f'''
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="{language}",
-    ref_audio=ref_audio,
-    x_vector_only_mode=True,
-)
-'''
-
-    script += f'''
-sf.write("{output_path}", wavs[0], sr)
-'''
-
-    import subprocess
-    result = subprocess.run(
-        [str(VENV_PYTHON), "-c", script],
-        capture_output=True,
-        text=True,
-    )
-
-    return result.returncode == 0
+    except Exception as e:
+        print(f"    ✗ Generation error: {e}")
+        return False
 
 
 def validate_segment(
@@ -338,6 +349,7 @@ def generate_segment_with_validation(
     language: str = "English",
     validate: bool = True,
     max_retries: int = MAX_RETRIES,
+    model=None,  # Pass model to avoid reloading
 ) -> tuple:
     """
     Generate segment audio with validation and retry.
@@ -361,7 +373,7 @@ def generate_segment_with_validation(
     while attempts < max_retries:
         attempts += 1
 
-        success = generate_segment_audio(segment, output_path, language)
+        success = generate_segment_audio(segment, output_path, language, model=model)
         if not success:
             last_issues = ["Generation failed"]
             continue
@@ -472,6 +484,9 @@ def generate_podcast(
     print(f"\nGenerating audio for {len(segments)} segments...")
     if validate:
         print(f"Validation enabled (Qwen3-ASR + Groq fallback, max retries: {max_retries})")
+
+    # Load model ONCE before processing all segments (major performance optimization)
+    model = load_model()
     start_time = time.time()
 
     for i, segment in enumerate(segments):
@@ -487,6 +502,7 @@ def generate_podcast(
                 segment, chunk_file, language,
                 validate=True,
                 max_retries=max_retries,
+                model=model,  # Pass pre-loaded model
             )
             total_retries += (attempts - 1)
 
@@ -507,7 +523,7 @@ def generate_podcast(
             elif attempts > 1:
                 print(f"    ✓ Passed on attempt {attempts}")
         else:
-            success = generate_segment_audio(segment, chunk_file, language)
+            success = generate_segment_audio(segment, chunk_file, language, model=model)
             if not success:
                 from pydub import AudioSegment
                 AudioSegment.silent(duration=500).export(str(chunk_file), format="wav")

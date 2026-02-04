@@ -41,6 +41,9 @@ from typing import List, Tuple, Optional
 # Suppress harmless transformers warnings about unsupported generation flags
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
+# Global model instance (loaded once, reused for all chunks)
+_tts_model = None
+
 # Resolve paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -221,71 +224,81 @@ def split_into_chunks(text: str, max_chars: int) -> List[str]:
     return [c.strip() for c in chunks if c.strip()]
 
 
+def load_model():
+    """Load Qwen3-TTS model once and cache it globally.
+
+    This avoids reloading the model for each chunk, which saves 10-30 seconds per chunk.
+    """
+    global _tts_model
+
+    if _tts_model is not None:
+        return _tts_model
+
+    import torch
+    from qwen_tts import Qwen3TTSModel
+
+    print("Loading Qwen3-TTS model (one-time initialization)...")
+    print(f"  Device: cuda")
+    if torch.cuda.is_available():
+        print(f"  GPU: {torch.cuda.get_device_name(0)}")
+
+    _tts_model = Qwen3TTSModel.from_pretrained(
+        "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        device_map="cuda:0",
+        dtype=torch.bfloat16,
+    )
+    print("  ✓ Model loaded")
+    return _tts_model
+
+
 def generate_audio(
     text: str,
     voice_path: Path,
     output_path: Path,
     language: str = "English",
     use_icl: bool = False,  # XFACTOR BY DEFAULT - removes accent artifacts
+    model=None,  # Pass model to avoid reloading
 ) -> bool:
     """Generate audio for text using voice cloning.
 
     IMPORTANT: Default is x_vector_only_mode (xfactor) which produces cleaner
     voice cloning without accent transfer. ICL mode requires --icl flag.
+
+    If model is None, loads globally cached model (efficient for multiple calls).
     """
-    import subprocess
+    import soundfile as sf
 
-    # Only use ICL if explicitly requested AND transcription exists
-    trans_path = voice_path.with_suffix(".txt")
-    use_icl = use_icl and trans_path.exists()
+    try:
+        # Use passed model or load/get cached model
+        if model is None:
+            model = load_model()
 
-    script = f'''
-import torch
-import soundfile as sf
-from qwen_tts import Qwen3TTSModel
+        # Only use ICL if explicitly requested AND transcription exists
+        trans_path = voice_path.with_suffix(".txt")
+        actual_use_icl = use_icl and trans_path.exists()
 
-model = Qwen3TTSModel.from_pretrained(
-    "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-    device_map="cuda:0",
-    dtype=torch.bfloat16,
-)
+        if actual_use_icl:
+            trans_text = trans_path.read_text(encoding="utf-8").strip()
+            wavs, sr = model.generate_voice_clone(
+                text=text,
+                language=language,
+                ref_audio=str(voice_path),
+                ref_text=trans_text,
+            )
+        else:
+            wavs, sr = model.generate_voice_clone(
+                text=text,
+                language=language,
+                ref_audio=str(voice_path),
+                x_vector_only_mode=True,
+            )
 
-ref_audio = "{voice_path}"
-text = """{text}"""
-'''
+        sf.write(str(output_path), wavs[0], sr)
+        return True
 
-    if use_icl:
-        trans_text = trans_path.read_text(encoding="utf-8").strip()
-        script += f'''
-ref_text = """{trans_text}"""
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="{language}",
-    ref_audio=ref_audio,
-    ref_text=ref_text,
-)
-'''
-    else:
-        script += f'''
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="{language}",
-    ref_audio=ref_audio,
-    x_vector_only_mode=True,
-)
-'''
-
-    script += f'''
-sf.write("{output_path}", wavs[0], sr)
-'''
-
-    result = subprocess.run(
-        [str(VENV_PYTHON), "-c", script],
-        capture_output=True,
-        text=True,
-    )
-
-    return result.returncode == 0
+    except Exception as e:
+        print(f"    ✗ Generation error: {e}")
+        return False
 
 
 def validate_chunk(
@@ -369,6 +382,7 @@ def generate_audio_with_validation(
     validate: bool = True,
     max_retries: int = MAX_RETRIES,
     use_icl: bool = False,  # XFACTOR BY DEFAULT
+    model=None,  # Pass model to avoid reloading
 ) -> tuple:
     """
     Generate audio with validation and automatic retry.
@@ -384,6 +398,7 @@ def generate_audio_with_validation(
         validate: Whether to validate output
         max_retries: Maximum retry attempts
         use_icl: Use ICL mode (default: False, uses xfactor)
+        model: Pre-loaded TTS model (for efficiency)
 
     Returns:
         Tuple of (success: bool, attempts: int, final_issues: list)
@@ -395,7 +410,7 @@ def generate_audio_with_validation(
         attempts += 1
 
         # Generate audio (xfactor by default, ICL only if --icl flag)
-        success = generate_audio(text, voice_path, output_path, language, use_icl=use_icl)
+        success = generate_audio(text, voice_path, output_path, language, use_icl=use_icl, model=model)
         if not success:
             last_issues = ["Generation failed"]
             continue
@@ -589,6 +604,9 @@ def main():
     print(f"Voice mode: {'ICL (with ref_text)' if args.icl else 'XFACTOR (x_vector_only, no accent)'}")
     if args.validate:
         print(f"Validation enabled (Qwen3-ASR + Groq fallback, max retries: {args.max_retries})")
+
+    # Load model ONCE before processing all chunks (major performance optimization)
+    model = load_model()
     start_time = time.time()
 
     for i, (seg_type, text, pause_ms) in enumerate(segments):
@@ -604,6 +622,7 @@ def main():
                 validate=True,
                 max_retries=args.max_retries,
                 use_icl=args.icl,  # XFACTOR by default
+                model=model,  # Pass pre-loaded model
             )
             total_retries += (attempts - 1)
 
@@ -624,7 +643,7 @@ def main():
             elif attempts > 1:
                 print(f"    ✓ Passed on attempt {attempts}")
         else:
-            success = generate_audio(text, voice_path, chunk_file, args.language, use_icl=args.icl)
+            success = generate_audio(text, voice_path, chunk_file, args.language, use_icl=args.icl, model=model)
             if not success:
                 from pydub import AudioSegment
                 AudioSegment.silent(duration=500).export(str(chunk_file), format="wav")
