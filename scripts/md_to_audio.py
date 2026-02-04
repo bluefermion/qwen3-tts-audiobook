@@ -38,6 +38,9 @@ import time
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+# Suppress harmless transformers warnings about unsupported generation flags
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
 # Resolve paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -223,13 +226,18 @@ def generate_audio(
     voice_path: Path,
     output_path: Path,
     language: str = "English",
+    use_icl: bool = False,  # XFACTOR BY DEFAULT - removes accent artifacts
 ) -> bool:
-    """Generate audio for text using voice cloning."""
+    """Generate audio for text using voice cloning.
+
+    IMPORTANT: Default is x_vector_only_mode (xfactor) which produces cleaner
+    voice cloning without accent transfer. ICL mode requires --icl flag.
+    """
     import subprocess
 
-    # Check for transcription (ICL mode)
+    # Only use ICL if explicitly requested AND transcription exists
     trans_path = voice_path.with_suffix(".txt")
-    use_icl = trans_path.exists()
+    use_icl = use_icl and trans_path.exists()
 
     script = f'''
 import torch
@@ -360,6 +368,7 @@ def generate_audio_with_validation(
     language: str = "English",
     validate: bool = True,
     max_retries: int = MAX_RETRIES,
+    use_icl: bool = False,  # XFACTOR BY DEFAULT
 ) -> tuple:
     """
     Generate audio with validation and automatic retry.
@@ -374,6 +383,7 @@ def generate_audio_with_validation(
         language: Language for TTS
         validate: Whether to validate output
         max_retries: Maximum retry attempts
+        use_icl: Use ICL mode (default: False, uses xfactor)
 
     Returns:
         Tuple of (success: bool, attempts: int, final_issues: list)
@@ -384,8 +394,8 @@ def generate_audio_with_validation(
     while attempts < max_retries:
         attempts += 1
 
-        # Generate audio
-        success = generate_audio(text, voice_path, output_path, language)
+        # Generate audio (xfactor by default, ICL only if --icl flag)
+        success = generate_audio(text, voice_path, output_path, language, use_icl=use_icl)
         if not success:
             last_issues = ["Generation failed"]
             continue
@@ -418,12 +428,69 @@ def generate_audio_with_validation(
     return False, attempts, last_issues
 
 
+def normalize_audio(input_path: Path, output_path: Path, target_lufs: float = -14.0) -> bool:
+    """
+    Normalize audio to streaming standards using ffmpeg loudnorm.
+
+    Args:
+        input_path: Input audio file
+        output_path: Output normalized file
+        target_lufs: Target loudness (-14 LUFS matches Spotify/streaming)
+
+    Returns:
+        True if successful
+    """
+    import subprocess
+
+    # Use ffmpeg loudnorm filter - matches Spotify's -14 LUFS standard
+    # TP=-1.0 prevents clipping, LRA=7 reduces dynamic range for consistent volume
+    cmd = [
+        "ffmpeg", "-y", "-i", str(input_path),
+        "-af", f"loudnorm=I={target_lufs}:TP=-1.0:LRA=7:print_format=summary",
+        "-ar", "24000",  # Keep sample rate
+        "-b:a", "192k",  # Bitrate for MP3
+        str(output_path)
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.returncode == 0
+
+
+def normalize_wav_chunk(wav_path: Path) -> bool:
+    """
+    Normalize a single WAV chunk in-place for consistent volume between chunks.
+
+    Uses ffmpeg to normalize to -14 LUFS so all chunks have same perceived loudness.
+    """
+    import subprocess
+
+    temp_path = wav_path.with_suffix('.norm.wav')
+
+    cmd = [
+        "ffmpeg", "-y", "-i", str(wav_path),
+        "-af", "loudnorm=I=-14:TP=-1.0:LRA=7",
+        "-ar", "24000",
+        str(temp_path)
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode == 0 and temp_path.exists():
+        temp_path.rename(wav_path)  # Replace original with normalized
+        return True
+    else:
+        if temp_path.exists():
+            temp_path.unlink()
+        return False
+
+
 def combine_audio(
     audio_files: List[Path],
     pause_durations: List[int],
     output_path: Path,
+    normalize: bool = True,  # Normalize for podcast by default
 ) -> float:
-    """Combine audio files with pauses."""
+    """Combine audio files with pauses and normalize for podcast."""
     from pydub import AudioSegment
 
     combined = AudioSegment.empty()
@@ -436,7 +503,20 @@ def combine_audio(
             if i < len(pause_durations) and pause_durations[i] > 0:
                 combined += AudioSegment.silent(duration=pause_durations[i])
 
-    if str(output_path).lower().endswith('.mp3'):
+    # Export to temp file first if normalizing
+    if normalize and str(output_path).lower().endswith('.mp3'):
+        temp_path = output_path.with_suffix('.temp.mp3')
+        combined.export(str(temp_path), format="mp3", bitrate="192k")
+
+        # Normalize to podcast standard (-16 LUFS)
+        if normalize_audio(temp_path, output_path):
+            temp_path.unlink()  # Remove temp file
+            print(f"    ✓ Normalized to -16 LUFS (podcast standard)")
+        else:
+            # Fallback: use unnormalized version
+            temp_path.rename(output_path)
+            print(f"    ⚠ Normalization failed, using raw audio")
+    elif str(output_path).lower().endswith('.mp3'):
         combined.export(str(output_path), format="mp3", bitrate="192k")
     else:
         combined.export(str(output_path), format="wav")
@@ -460,6 +540,10 @@ def main():
                         help=f"Max retry attempts for failed validation (default: {MAX_RETRIES}, 1-3 Qwen, 4-5 Groq)")
     parser.add_argument("--strict", action="store_true",
                         help="Fail if any chunk fails validation after all retries")
+    parser.add_argument("--icl", action="store_true",
+                        help="Use ICL mode (with ref_text). Default is XFACTOR (x_vector_only) which removes accent")
+    parser.add_argument("--no-normalize", action="store_true",
+                        help="Skip loudness normalization (default: normalize to -16 LUFS for podcast)")
 
     args = parser.parse_args()
 
@@ -502,6 +586,7 @@ def main():
     validation_failures = []
 
     print(f"\nGenerating audio with voice: {args.voice}")
+    print(f"Voice mode: {'ICL (with ref_text)' if args.icl else 'XFACTOR (x_vector_only, no accent)'}")
     if args.validate:
         print(f"Validation enabled (Qwen3-ASR + Groq fallback, max retries: {args.max_retries})")
     start_time = time.time()
@@ -518,6 +603,7 @@ def main():
                 text, voice_path, chunk_file, args.language,
                 validate=True,
                 max_retries=args.max_retries,
+                use_icl=args.icl,  # XFACTOR by default
             )
             total_retries += (attempts - 1)
 
@@ -538,7 +624,7 @@ def main():
             elif attempts > 1:
                 print(f"    ✓ Passed on attempt {attempts}")
         else:
-            success = generate_audio(text, voice_path, chunk_file, args.language)
+            success = generate_audio(text, voice_path, chunk_file, args.language, use_icl=args.icl)
             if not success:
                 from pydub import AudioSegment
                 AudioSegment.silent(duration=500).export(str(chunk_file), format="wav")
@@ -546,9 +632,18 @@ def main():
 
     elapsed = time.time() - start_time
 
-    # Combine
+    # Normalize each chunk for consistent volume (critical for podcast/car listening)
+    normalize = not args.no_normalize
+    if normalize:
+        print(f"\nNormalizing {len(audio_files)} chunks to -14 LUFS (Spotify standard)...")
+        for i, chunk_file in enumerate(audio_files):
+            if chunk_file.exists() and chunk_file.stat().st_size > 1000:
+                normalize_wav_chunk(chunk_file)
+        print("  ✓ All chunks normalized")
+
+    # Combine chunks
     print(f"\nCombining {len(audio_files)} segments...")
-    duration = combine_audio(audio_files, pause_durations, output_path)
+    duration = combine_audio(audio_files, pause_durations, output_path, normalize=normalize)
 
     # Cleanup
     if not args.keep_chunks:

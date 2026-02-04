@@ -27,6 +27,10 @@ voices/*.txt
 !voices/.gitkeep
 !voices/README.md
 
+# Work directory (private working files, experiments, personal content)
+work/
+!work/.gitkeep
+
 # Generated output
 output/
 *.wav

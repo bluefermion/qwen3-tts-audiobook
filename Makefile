@@ -215,8 +215,8 @@ prepare: check-venv ## Prepare a new voice profile
 		echo "  TRANS  Transcription for ICL mode (optional)"; \
 		echo ""; \
 		echo "Example:"; \
-		echo "  make prepare FILE=~/recording.mp3 NAME=patrick_calm"; \
-		echo "  make prepare FILE=~/recording.mp3 NAME=patrick_calm TRANS=\"Hello, this is a test...\""; \
+		echo "  make prepare FILE=~/recording.mp3 NAME=my_voice"; \
+		echo "  make prepare FILE=~/recording.mp3 NAME=my_voice TRANS=\"Hello, this is a test...\""; \
 		exit 1; \
 	fi
 	@if [ -z "$(NAME)" ]; then \
@@ -275,7 +275,7 @@ convert: check-venv ## Convert markdown to audio
 		echo "      and retried up to 3 times if stuttering is detected."; \
 		echo ""; \
 		echo "Example:"; \
-		echo "  make convert FILE=examples/english/sample.md VOICE=patrick_30s_mono24k"; \
+		echo "  make convert FILE=examples/english/sample.md VOICE=author_30s_mono24k"; \
 		exit 1; \
 	fi
 	@voice="$(VOICE)"; \

@@ -137,7 +137,7 @@ python scripts/multi_speaker.py podcast_script.txt --list-voices
 
 ## Voice Profiles
 
-Voice profiles are stored in the `voices/` directory:
+Voice profiles are stored in the `voices/` directory (private, not committed to git):
 
 ```
 voices/
@@ -147,6 +147,8 @@ voices/
 ├── my_voice_calm.wav      # Another variant
 └── ...
 ```
+
+> **Note:** The `voices/` and `work/` directories are in `.gitignore` for privacy. Use `work/` for personal experiments, draft scripts, or any content you don't want public.
 
 ### Recording Tips
 
@@ -305,4 +307,4 @@ MIT License - See LICENSE file for details.
 
 - [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) by Alibaba
 - [Qwen3-ASR](https://github.com/QwenLM/Qwen3-ASR) by Alibaba
-- Built with lessons learned the hard way (see [STORY.md](STORY.md))
+- Built with lessons learned the hard way (see [docs/STORY.md](docs/STORY.md))

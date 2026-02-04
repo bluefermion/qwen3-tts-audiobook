@@ -1,1 +1,1 @@
-CLAUDE.md
+docs/CLAUDE.md
