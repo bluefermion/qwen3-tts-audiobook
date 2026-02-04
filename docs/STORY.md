@@ -81,25 +81,7 @@ We added:
 
 Suddenly it sounded like a real audiobook instead of an auctioneer on espresso.
 
-## Chapter 7: "The Cloudflare Boss Battle"
-
-We tried connecting to an LLM API to clean up our text.
-
-**Cloudflare:** "Blocked. You look suspicious."
-
-**Us:** But we're legitimate!
-
-**Cloudflare:** Your User-Agent says "Python-urllib". That's what bots use.
-
-**Us:** We ARE using Python...
-
-**Cloudflare:** Exactly. Blocked.
-
-**The fix:** Tell Python to pretend it's curl. `User-Agent: curl/8.0`
-
-Sometimes you have to lie to computers to get work done.
-
-## Chapter 8: "Two Models, Two Purposes"
+## Chapter 7: "Two Models, Two Purposes"
 
 We discovered Qwen3-TTS actually has TWO models:
 
@@ -119,7 +101,7 @@ So we can either:
 
 Then use each as a separate voice profile. Hack? Yes. Works? Also yes.
 
-## Chapter 9: "4000 Characters of Wisdom"
+## Chapter 8: "4000 Characters of Wisdom"
 
 The model can technically handle 32,768 tokens (~100,000 characters).
 
@@ -137,7 +119,7 @@ We tested chunk sizes:
 
 **Final answer:** 4000 characters per chunk. Big enough for smooth audio, small enough to not crash.
 
-## Chapter 10: "The Pipeline That Works"
+## Chapter 9: "The Pipeline That Works"
 
 After all this chaos, we built a pipeline that actually works:
 
