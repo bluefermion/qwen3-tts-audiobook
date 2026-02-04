@@ -1,0 +1,95 @@
+# The Call - A Dramatic Monologue
+# Uses: author_neutral, author_excited, author_sad, author_angry
+# A story of one man's emotional journey through an unexpected phone call
+
+[author_neutral] It started like any other Tuesday morning. Coffee in hand,
+emails piling up, the usual office noise humming in the background.
+I wasn't expecting anything special.
+
+[pause 0.5s]
+
+[author_neutral] Then my phone rang. Unknown number. Normally I'd ignore it,
+but something made me pick up.
+
+[pause 0.3s]
+
+[author_excited] They said yes! After three months of interviews, after all
+those sleepless nights preparing, they actually said yes! The dream job at
+the company I've been following since college. I couldn't believe it!
+
+[pause 0.3s]
+
+[author_excited] My hands were shaking as I wrote down the details. Senior
+position, corner office, the whole package! I wanted to run through the
+hallways shouting the news to everyone!
+
+[pause 0.5s]
+
+[author_neutral] But then she asked me to hold for a moment. Said there was
+one small detail to discuss. The line went quiet.
+
+[pause 0.8s]
+
+[author_sad] The position... was in Tokyo. They needed someone to relocate
+within two weeks. Two weeks. How could I leave everything behind so quickly?
+My family, my friends, the life I've built here over the past ten years.
+
+[pause 0.3s]
+
+[author_sad] I thought about my mother's face when I'd tell her. About missing
+my niece's graduation. About the promises I made to people who counted on me
+being here. The excitement drained away, replaced by this heavy weight in my
+chest.
+
+[pause 0.5s]
+
+[author_angry] And then it hit me. They knew. They knew about the relocation
+from the very first interview! Three months of my time, my energy, my hope,
+and they never once mentioned I'd have to leave the country!
+
+[pause 0.3s]
+
+[author_angry] How could they string me along like that? Did they think I'd
+just abandon my entire life on two weeks notice? That I'd be so desperate
+for their fancy title that nothing else would matter?
+
+[pause 0.5s]
+
+[author_neutral] I took a deep breath. Then another. The woman came back on
+the line, waiting for my answer.
+
+[pause 0.3s]
+
+[author_sad] Part of me wanted to say yes anyway. This opportunity might
+never come again. Dreams don't knock twice, that's what my father always said.
+
+[pause 0.3s]
+
+[author_angry] But another part of me refused to reward their games. If they
+wanted me badly enough to wait three months, they could wait a little longer
+for a reasonable timeline.
+
+[pause 0.5s]
+
+[author_neutral] So I told her I needed the weekend to think. She agreed,
+surprisingly. Maybe they're more flexible than they let on. Maybe there's
+still a way to make this work.
+
+[pause 0.3s]
+
+[author_excited] Because here's the thing, despite everything, they chose me!
+Out of hundreds of candidates, they picked me for the role I've been dreaming
+about since I was twenty-two years old!
+
+[pause 0.3s]
+
+[author_neutral] Life rarely offers perfect choices. Most of the time, we're
+choosing between different kinds of difficult. The question isn't whether
+it will be hard. The question is whether it will be worth it.
+
+[pause 0.5s]
+
+[author_excited] And you know what? I think it might be. I really think it
+might be. Tokyo, here I come. Eventually.
+
+[pause 1s]
