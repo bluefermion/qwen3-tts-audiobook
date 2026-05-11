@@ -155,11 +155,29 @@ def test_voice(voice_file: str, text: str, output: Optional[str] = None) -> Path
     print(f"Mode: {'ICL (with transcription)' if use_icl else 'x_vector_only'}")
     print(f"Text: {text[:50]}..." if len(text) > 50 else f"Text: {text}")
 
-    # Generate using inline Python (avoids import issues)
-    script = f'''
-import torch
+    # Generate using a fixed inline helper that reads user-supplied text
+    # from stdin as JSON. The previous implementation f-string-interpolated
+    # `text` and `trans_text` directly into a Python source string with
+    # `"""..."""` quoting; any triple-quote (or backslash) in a transcription
+    # file would escape the literal and execute as Python.
+    payload = {
+        "ref_audio": str(voice_path),
+        "output_path": str(output_path),
+        "text": text,
+    }
+    if use_icl:
+        payload["ref_text"] = trans_path.read_text(encoding="utf-8").strip()
+
+    script = '''
+import json, sys, torch
 import soundfile as sf
 from qwen_tts import Qwen3TTSModel
+
+data = json.loads(sys.stdin.read())
+ref_audio = data["ref_audio"]
+output_path = data["output_path"]
+text = data["text"]
+ref_text = data.get("ref_text")
 
 model = Qwen3TTSModel.from_pretrained(
     "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
@@ -167,39 +185,25 @@ model = Qwen3TTSModel.from_pretrained(
     dtype=torch.bfloat16,
 )
 
-ref_audio = "{voice_path}"
-text = """{text}"""
-'''
+if ref_text is not None:
+    wavs, sr = model.generate_voice_clone(
+        text=text, language="English",
+        ref_audio=ref_audio, ref_text=ref_text,
+    )
+else:
+    wavs, sr = model.generate_voice_clone(
+        text=text, language="English",
+        ref_audio=ref_audio, x_vector_only_mode=True,
+    )
 
-    if use_icl:
-        trans_text = trans_path.read_text(encoding="utf-8").strip()
-        script += f'''
-ref_text = """{trans_text}"""
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="English",
-    ref_audio=ref_audio,
-    ref_text=ref_text,
-)
-'''
-    else:
-        script += '''
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="English",
-    ref_audio=ref_audio,
-    x_vector_only_mode=True,
-)
-'''
-
-    script += f'''
-sf.write("{output_path}", wavs[0], sr)
+sf.write(output_path, wavs[0], sr)
 print(f"Generated: {output_path}")
-print(f"Duration: {{len(wavs[0])/sr:.1f}}s")
+print(f"Duration: {len(wavs[0])/sr:.1f}s")
 '''
 
     result = subprocess.run(
         [str(VENV_PYTHON), "-c", script],
+        input=json.dumps(payload),
         capture_output=True,
         text=True,
     )
@@ -247,10 +251,29 @@ def clone_voice(
     print(f"Language: {language}")
     print(f"Output: {output_path}")
 
-    script = f'''
-import torch
+    # Build payload (see test_voice above for why interpolation is avoided).
+    payload = {
+        "ref_audio": str(voice_path),
+        "output_path": str(output_path),
+        "text": text,
+        "language": language,
+        "temperature": temperature,
+    }
+    if use_icl:
+        payload["ref_text"] = trans_path.read_text(encoding="utf-8").strip()
+
+    script = '''
+import json, sys, torch
 import soundfile as sf
 from qwen_tts import Qwen3TTSModel
+
+data = json.loads(sys.stdin.read())
+ref_audio = data["ref_audio"]
+output_path = data["output_path"]
+text = data["text"]
+language = data["language"]
+temperature = data["temperature"]
+ref_text = data.get("ref_text")
 
 model = Qwen3TTSModel.from_pretrained(
     "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
@@ -258,43 +281,32 @@ model = Qwen3TTSModel.from_pretrained(
     dtype=torch.bfloat16,
 )
 
-ref_audio = "{voice_path}"
-text = """{text}"""
-'''
+gen_kwargs = {}
+if temperature != 1.0:
+    gen_kwargs["temperature"] = temperature
+    gen_kwargs["do_sample"] = True
 
-    gen_kwargs = ""
-    if temperature != 1.0:
-        gen_kwargs = f", temperature={temperature}, do_sample=True"
+if ref_text is not None:
+    wavs, sr = model.generate_voice_clone(
+        text=text, language=language,
+        ref_audio=ref_audio, ref_text=ref_text,
+        **gen_kwargs,
+    )
+else:
+    wavs, sr = model.generate_voice_clone(
+        text=text, language=language,
+        ref_audio=ref_audio, x_vector_only_mode=True,
+        **gen_kwargs,
+    )
 
-    if use_icl:
-        trans_text = trans_path.read_text(encoding="utf-8").strip()
-        script += f'''
-ref_text = """{trans_text}"""
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="{language}",
-    ref_audio=ref_audio,
-    ref_text=ref_text{gen_kwargs},
-)
-'''
-    else:
-        script += f'''
-wavs, sr = model.generate_voice_clone(
-    text=text,
-    language="{language}",
-    ref_audio=ref_audio,
-    x_vector_only_mode=True{gen_kwargs},
-)
-'''
-
-    script += f'''
-sf.write("{output_path}", wavs[0], sr)
+sf.write(output_path, wavs[0], sr)
 print(f"Generated: {output_path}")
-print(f"Duration: {{len(wavs[0])/sr:.1f}}s")
+print(f"Duration: {len(wavs[0])/sr:.1f}s")
 '''
 
     result = subprocess.run(
         [str(VENV_PYTHON), "-c", script],
+        input=json.dumps(payload),
         capture_output=True,
         text=True,
     )

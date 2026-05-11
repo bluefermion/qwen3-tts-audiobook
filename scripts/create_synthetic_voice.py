@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -39,10 +40,28 @@ def create_voice(name: str, description: str, sample_text: str = None):
 
     VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
-    script = f'''
-import torch
+    # User-supplied `description` and `sample_text` are passed via stdin
+    # JSON, not interpolated into the script source. The historical
+    # f-string approach allowed any triple-quote / backslash in the
+    # description or sample text to escape the literal and execute as
+    # Python.
+    payload = {
+        "description": description,
+        "sample_text": sample_text,
+        "output_path": str(VOICES_DIR / f"{name}.wav"),
+        "trans_path": str(VOICES_DIR / f"{name}.txt"),
+    }
+
+    script = '''
+import json, sys, torch
 import soundfile as sf
 from qwen_tts import Qwen3TTSModel
+
+data = json.loads(sys.stdin.read())
+voice_desc = data["description"]
+sample_text = data["sample_text"]
+output_path = data["output_path"]
+trans_path = data["trans_path"]
 
 print("Loading Qwen3-TTS-VoiceDesign...")
 model = Qwen3TTSModel.from_pretrained(
@@ -51,32 +70,27 @@ model = Qwen3TTSModel.from_pretrained(
     dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
 )
 
-voice_desc = """{description}"""
-sample_text = """{sample_text}"""
-
-print(f"Generating voice: {{voice_desc[:60]}}...")
+print(f"Generating voice: {voice_desc[:60]}...")
 wavs, sr = model.generate_voice_design(
     text=sample_text,
     language="English",
-    instruct=voice_desc,  # instruct is the voice description parameter
+    instruct=voice_desc,
 )
 
-output_path = "{VOICES_DIR / f'{name}.wav'}"
 sf.write(output_path, wavs[0], sr)
 
-# Save transcription for ICL mode
-trans_path = "{VOICES_DIR / f'{name}.txt'}"
 with open(trans_path, "w") as f:
     f.write(sample_text)
 
 duration = len(wavs[0]) / sr
-print(f"Created: {{output_path}}")
-print(f"Duration: {{duration:.1f}}s")
-print(f"Transcription: {{trans_path}}")
+print(f"Created: {output_path}")
+print(f"Duration: {duration:.1f}s")
+print(f"Transcription: {trans_path}")
 '''
 
     result = subprocess.run(
         [str(VENV_PYTHON), "-c", script],
+        input=json.dumps(payload),
         capture_output=True,
         text=True,
     )

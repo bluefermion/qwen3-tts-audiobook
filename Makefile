@@ -289,11 +289,11 @@ convert: check-venv ## Convert markdown to audio
 	fi; \
 	lang="$(LANG)"; \
 	if [ -z "$$lang" ]; then lang="English"; fi; \
-	cmd="$(VENV_PYTHON) $(SCRIPTS)/md_to_audio.py \"$(FILE)\" --voice $$voice --language $$lang --validate"; \
 	if [ -n "$(OUT)" ]; then \
-		cmd="$$cmd -o \"$(OUT)\""; \
-	fi; \
-	eval $$cmd
+		"$(VENV_PYTHON)" "$(SCRIPTS)/md_to_audio.py" "$(FILE)" --voice "$$voice" --language "$$lang" --validate -o "$(OUT)"; \
+	else \
+		"$(VENV_PYTHON)" "$(SCRIPTS)/md_to_audio.py" "$(FILE)" --voice "$$voice" --language "$$lang" --validate; \
+	fi
 
 podcast: check-venv ## Generate multi-speaker podcast
 	@echo "$(COLOR_BOLD)Multi-Speaker Podcast$(COLOR_RESET)"
@@ -318,11 +318,11 @@ podcast: check-venv ## Generate multi-speaker podcast
 	fi
 	@lang="$(LANG)"; \
 	if [ -z "$$lang" ]; then lang="English"; fi; \
-	cmd="$(VENV_PYTHON) $(SCRIPTS)/multi_speaker.py \"$(FILE)\" --language $$lang --validate"; \
 	if [ -n "$(OUT)" ]; then \
-		cmd="$$cmd -o \"$(OUT)\""; \
-	fi; \
-	eval $$cmd
+		"$(VENV_PYTHON)" "$(SCRIPTS)/multi_speaker.py" "$(FILE)" --language "$$lang" --validate -o "$(OUT)"; \
+	else \
+		"$(VENV_PYTHON)" "$(SCRIPTS)/multi_speaker.py" "$(FILE)" --language "$$lang" --validate; \
+	fi
 
 audiobook: check-venv ## Full audiobook pipeline (LLM preprocessing + emotional voices)
 	@echo "$(COLOR_BOLD)Audiobook Generation$(COLOR_RESET)"
@@ -384,11 +384,11 @@ transcribe: check-venv ## Transcribe audio to text using Qwen3-ASR
 	fi
 	@backend="$(BACKEND)"; \
 	if [ -z "$$backend" ]; then backend="qwen"; fi; \
-	cmd="$(VENV_PYTHON) $(SCRIPTS)/transcribe.py \"$(FILE)\" --backend $$backend"; \
 	if [ -n "$(OUT)" ]; then \
-		cmd="$$cmd -o \"$(OUT)\""; \
-	fi; \
-	eval $$cmd
+		"$(VENV_PYTHON)" "$(SCRIPTS)/transcribe.py" "$(FILE)" --backend "$$backend" -o "$(OUT)"; \
+	else \
+		"$(VENV_PYTHON)" "$(SCRIPTS)/transcribe.py" "$(FILE)" --backend "$$backend"; \
+	fi
 
 validate: check-venv ## Validate audio quality (detect stuttering, artifacts)
 	@echo "$(COLOR_BOLD)Validate Audio$(COLOR_RESET)"
